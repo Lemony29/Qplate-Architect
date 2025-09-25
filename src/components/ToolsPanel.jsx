@@ -44,7 +44,7 @@ export function ToolsPanel({
         </div>
         
         <div className="space-y-2">
-          <Label>Alvos (Genes / Controlos)</Label>
+          <Label>Alvos (Genes / Controles)</Label>
           <div className="space-y-2">
             {targets.filter(t => t.id !== 'empty').map(target => (
               <div key={target.id} className="flex items-center gap-2">
