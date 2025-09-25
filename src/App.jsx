@@ -1,11 +1,10 @@
-// src/App.jsx - VERSÃO COMPLETA E CORRIGIDA
+// src/App.jsx - VERSÃO FINAL E COMPLETA
 
 import { useState, useEffect, useRef } from 'react'
-// Nossos novos componentes importados
 import { ToolsPanel } from './components/ToolsPanel'
 import { PlateGrid } from './components/PlateGrid'
-
-// O resto das dependências de UI e ícones
+import { MasterMixCalculator } from './components/MasterMixCalculator'
+import { Checklist } from './components/Checklist'
 import { Button } from '@/components/ui/button.jsx'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -13,18 +12,13 @@ import { Separator } from '@/components/ui/separator.jsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card.jsx'
-import { Badge } from '@/components/ui/badge.jsx'
-import { 
-  Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Beaker, Plus, Trash2
-} from 'lucide-react'
+import { Grid3X3, Calculator, CheckSquare, Upload, Download } from 'lucide-react'
 import './App.css'
 
-// Constantes
 const INITIAL_CHECKLIST = [
   'Degelar todos os reagentes e mantê-los no gelo', 'Vortexar e centrifugar brevemente todos os reagentes',
   'Preparar o Master Mix na bancada conforme a calculadora', 'Homogeneizar o Master Mix e distribuir nos poços',
-  'Adicionar amostras/padrões/controles nos poços correspondentes', 'Selar o placa com filme adesivo óptico',
+  'Adicionar amostras/padrões/controles nos poços correspondentes', 'Selar a placa com filme adesivo óptico',
   'Centrifugar a placa brevemente para remover bolhas', 'Colocar a placa no termociclador e iniciar a corrida'
 ];
 const INITIAL_REAGENTS = [
@@ -33,9 +27,9 @@ const INITIAL_REAGENTS = [
   { name: 'Primer Reverse (10µM)', volumePerReaction: 0.5 }, { name: 'Água livre de nucleases', volumePerReaction: 16.4 }
 ];
 const PLATE_FORMATS = {
-  '96': { name: '96 poços (8x12)', rows: 8, cols: 12 },
-  '384': { name: '384 poços (16x24)', rows: 16, cols: 24 },
-  '48': { name: '48 poços (6x8)', rows: 6, cols: 8 }
+  '96': { rows: 8, cols: 12 },
+  '384': { rows: 16, cols: 24 },
+  '48': { rows: 6, cols: 8 }
 };
 const WELL_TYPES = {
   sample: { name: 'Amostra' }, standard: { name: 'Padrão' }, positive: { name: 'Controle +' },
@@ -43,7 +37,6 @@ const WELL_TYPES = {
 };
 
 function App() {
-  // --- ESTADO DA APLICAÇÃO (O CÉREBRO) ---
   const [projectName, setProjectName] = useState(() => localStorage.getItem('projectName') || 'Novo Projeto');
   const [plateFormat, setPlateFormat] = useState(() => localStorage.getItem('plateFormat') || '96');
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
@@ -66,7 +59,6 @@ function App() {
   
   const fileInputRef = useRef(null);
 
-  // --- EFEITOS (SALVAMENTO AUTOMÁTICO) ---
   useEffect(() => { localStorage.setItem('projectName', projectName); }, [projectName]);
   useEffect(() => { localStorage.setItem('plateFormat', plateFormat); }, [plateFormat]);
   useEffect(() => { localStorage.setItem('plateData', JSON.stringify(plateData)); }, [plateData]);
@@ -77,7 +69,6 @@ function App() {
   useEffect(() => { localStorage.setItem('checklistItems', JSON.stringify(checklistItems)); }, [checklistItems]);
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
 
-  // --- FUNÇÕES DE MANIPULAÇÃO (AÇÕES) ---
   const getTotalReactions = () => Object.values(plateData).filter(well => well.type !== 'empty').length;
 
   const handleWellClick = (wellId, isShiftHeld) => {
@@ -143,6 +134,10 @@ function App() {
     setChecklistItems(newItems);
     setChecklistEditorOpen(false);
   };
+  
+  const handleItemToggle = (index) => {
+    setCompletedItems(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
+  };
 
   const calculateMasterMix = () => {
     const totalReactions = getTotalReactions();
@@ -191,7 +186,6 @@ function App() {
     }
   };
 
-  // --- JSX (INTERFACE) ---
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="bg-white shadow-sm border-b sticky top-0 z-10">
@@ -251,82 +245,29 @@ function App() {
           </TabsContent>
           
           <TabsContent value="mastermix">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2"><Beaker className="h-5 w-5" />Reagentes do Master Mix</CardTitle>
-                  <CardDescription>Total de reações na placa: {getTotalReactions()}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    {reagents.map((reagent, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Input value={reagent.name} onChange={(e) => { const newReagents = [...reagents]; newReagents[index].name = e.target.value; setReagents(newReagents); }} className="flex-1" placeholder="Nome do reagente" />
-                        <Input type="number" step="0.1" value={reagent.volumePerReaction} onChange={(e) => { const newReagents = [...reagents]; newReagents[index].volumePerReaction = parseFloat(e.target.value) || 0; setReagents(newReagents); }} className="w-20" placeholder="µL" />
-                        <Button variant="outline" size="icon" onClick={() => { setReagents(reagents.filter((_, i) => i !== index)); }}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button variant="outline" onClick={() => setReagents([...reagents, { name: '', volumePerReaction: 0 }])} className="w-full"><Plus className="h-4 w-4 mr-2" />Adicionar Reagente</Button>
-                  <Separator />
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold">Margem de Segurança</Label>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2"><input type="radio" id="extra-samples" name="margin" checked={marginType === 'extra'} onChange={() => setMarginType('extra')} /><Label htmlFor="extra-samples">Amostras Extras</Label>{marginType === 'extra' && <Input type="number" value={extraSamples} onChange={(e) => setExtraSamples(parseInt(e.target.value) || 0)} className="w-20" min="0" />}</div>
-                      <div className="flex items-center space-x-2"><input type="radio" id="extra-percentage" name="margin" checked={marginType === 'percentage'} onChange={() => setMarginType('percentage')} /><Label htmlFor="extra-percentage">Porcentagem Extra (%)</Label>{marginType === 'percentage' && <Input type="number" value={extraPercentage} onChange={(e) => setExtraPercentage(parseInt(e.target.value) || 0)} className="w-20" min="0" max="100" />}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><CardTitle className="flex items-center space-x-2"><Calculator className="h-5 w-5" />Resultados do Master Mix</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b"><th className="text-left p-2">Reagente</th><th className="text-right p-2">Vol/Reação (µL)</th><th className="text-right p-2">Vol Total (µL)</th></tr></thead>
-                        <tbody>
-                          {calculateMasterMix().map((reagent, index) => ( <tr key={index} className="border-b"><td className="p-2">{reagent.name}</td><td className="p-2 text-right">{reagent.volumePerReaction}</td><td className="p-2 text-right font-semibold">{reagent.totalVolume}</td></tr> ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-blue-900">Volume Total Final:</span>
-                        <Badge variant="secondary" className="text-lg px-3 py-1">{getTotalMasterMixVolume()} µL</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <MasterMixCalculator
+              reagents={reagents}
+              setReagents={setReagents}
+              totalReactions={getTotalReactions()}
+              marginType={marginType}
+              setMarginType={setMarginType}
+              extraSamples={extraSamples}
+              setExtraSamples={setExtraSamples}
+              extraPercentage={extraPercentage}
+              setExtraPercentage={setExtraPercentage}
+              calculatedMix={calculateMasterMix()}
+              totalMixVolume={getTotalMasterMixVolume()}
+            />
           </TabsContent>
           
           <TabsContent value="checklist">
-             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2"><CheckSquare className="h-5 w-5" />Checklist de Preparação (Mini-POP)</CardTitle>
-                <CardDescription>Siga os passos abaixo para montar sua placa</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {checklistItems.map((item, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <input type="checkbox" id={`item-${index}`} checked={completedItems.includes(index)} onChange={(e) => { setCompletedItems(prev => e.target.checked ? [...prev, index] : prev.filter(i => i !== index)) }} className="mt-1 h-4 w-4" />
-                      <Label htmlFor={`item-${index}`} className={`flex-1 ${completedItems.includes(index) ? 'line-through text-gray-500' : ''}`}>{item}</Label>
-                    </div>
-                  ))}
-                </div>
-                <Separator className="my-6" />
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600">Progresso: {completedItems.length}/{checklistItems.length} itens concluídos</div>
-                  <div className="space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setChecklistEditorOpen(true)}><Edit className="h-4 w-4 mr-2" />Editar Checklist</Button>
-                    <Button variant="outline" size="sm" onClick={() => setCompletedItems([])}><RotateCcw className="h-4 w-4 mr-2" />Resetar</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <Checklist
+              items={checklistItems}
+              completedItems={completedItems}
+              onItemToggle={handleItemToggle}
+              onEdit={() => setChecklistEditorOpen(true)}
+              onReset={() => setCompletedItems([])}
+            />
           </TabsContent>
         </Tabs>
       </main>
