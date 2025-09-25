@@ -1,36 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
+import { ToolsPanel } from './components/ToolsPanel'
+import { PlateGrid } from './components/PlateGrid'
 import { Button } from '@/components/ui/button.jsx'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx'
-import { Input } from '@/components/ui/input.jsx'
-import { Label } from '@/components/ui/label.jsx'
-import { Badge } from '@/components/ui/badge.jsx'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator.jsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
-import { Separator } from '@/components/ui/separator.jsx'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card.jsx'
+import { Badge } from '@/components/ui/badge.jsx'
 import { 
-  Grid3X3, Calculator, CheckSquare, Upload, Download, Settings,
-  Beaker, Trash2, Plus, Edit, Copy, RotateCcw
+  Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Beaker, Plus, Trash2
 } from 'lucide-react'
 import './App.css'
-
-// --- CONSTANTES ---
-const WELL_TYPES = {
-  sample: { name: 'Amostra', color: 'bg-blue-500', textColor: 'text-white' },
-  standard: { name: 'Padrão', color: 'bg-green-500', textColor: 'text-white' },
-  positive: { name: 'Controle +', color: 'bg-red-500', textColor: 'text-white' },
-  negative: { name: 'Controle -', color: 'bg-yellow-500', textColor: 'text-black' },
-  ntc: { name: 'NTC', color: 'bg-purple-500', textColor: 'text-white' },
-  blank: { name: 'Branco', color: 'bg-gray-300', textColor: 'text-black' },
-  empty: { name: 'Vazio', color: 'bg-white border-2 border-gray-300', textColor: 'text-gray-500' }
-};
-
-const PLATE_FORMATS = {
-  '96': { name: '96 poços (8x12)', rows: 8, cols: 12 },
-  '384': { name: '384 poços (16x24)', rows: 16, cols: 24 },
-  '48': { name: '48 poços (6x8)', rows: 6, cols: 8 }
-};
 
 const INITIAL_CHECKLIST = [
   'Degelar todos os reagentes e mantê-los no gelo', 'Vortexar e centrifugar brevemente todos os reagentes',
@@ -38,41 +21,19 @@ const INITIAL_CHECKLIST = [
   'Adicionar amostras/padrões/controles nos poços correspondentes', 'Selar a placa com filme adesivo óptico',
   'Centrifugar a placa brevemente para remover bolhas', 'Colocar a placa no termociclador e iniciar a corrida'
 ];
-
 const INITIAL_REAGENTS = [
   { name: 'Taq DNA Polimerase', volumePerReaction: 0.2 }, { name: 'Buffer de Reação 10X', volumePerReaction: 2.0 },
   { name: 'dNTPs (10mM)', volumePerReaction: 0.4 }, { name: 'Primer Forward (10µM)', volumePerReaction: 0.5 },
   { name: 'Primer Reverse (10µM)', volumePerReaction: 0.5 }, { name: 'Água livre de nucleases', volumePerReaction: 16.4 }
 ];
 
-// Componente para um único poço
-const WellComponent = ({ row, col, wellData, isSelected, onWellClick, onWellDoubleClick }) => {
-  const wellId = `${String.fromCharCode(65 + row)}${col + 1}`;
-  const wellTypeInfo = WELL_TYPES[wellData.type];
-  
-  return (
-    <div
-      className={`w-8 h-8 rounded-full cursor-pointer border-2 flex items-center justify-center text-xs font-medium select-none
-        ${wellTypeInfo.color} ${wellTypeInfo.textColor}
-        ${isSelected ? 'ring-4 ring-offset-1 ring-blue-400' : ''}
-        hover:scale-110 transition-transform`}
-      onClick={(e) => onWellClick(wellId, e.shiftKey)}
-      onDoubleClick={() => onWellDoubleClick(wellId)}
-      title={`${wellId}: ${wellData.label || wellTypeInfo.name}`}
-    >
-      {wellData.label ? wellData.label.substring(0, 3) : ''}
-    </div>
-  );
-};
-
 function App() {
-  // --- CARREGAR DADOS DO LOCALSTORAGE ---
   const [projectName, setProjectName] = useState(() => localStorage.getItem('projectName') || 'Novo Projeto');
-  const [currentTab, setCurrentTab] = useState('design');
   const [plateFormat, setPlateFormat] = useState(() => localStorage.getItem('plateFormat') || '96');
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
   const [selectedWellType, setSelectedWellType] = useState('sample');
   const [selectedWells, setSelectedWells] = useState([]);
+  const [currentTab, setCurrentTab] = useState('design');
   
   const [reagents, setReagents] = useState(() => JSON.parse(localStorage.getItem('reagents')) || INITIAL_REAGENTS);
   const [marginType, setMarginType] = useState(() => localStorage.getItem('marginType') || 'extra');
@@ -81,15 +42,14 @@ function App() {
   
   const [checklistItems, setChecklistItems] = useState(() => JSON.parse(localStorage.getItem('checklistItems')) || INITIAL_CHECKLIST);
   const [completedItems, setCompletedItems] = useState(() => JSON.parse(localStorage.getItem('completedItems')) || []);
-  const [isChecklistEditorOpen, setChecklistEditorOpen] = useState(false);
-  const [checklistText, setChecklistText] = useState(checklistItems.join('\n'));
-
+  
   const [editingWellId, setEditingWellId] = useState(null);
   const [editingWellData, setEditingWellData] = useState({ label: '', concentration: '' });
-
+  const [isChecklistEditorOpen, setChecklistEditorOpen] = useState(false);
+  const [checklistText, setChecklistText] = useState(checklistItems.join('\n'));
+  
   const fileInputRef = useRef(null);
 
-  // --- SALVAR DADOS NO LOCALSTORAGE ---
   useEffect(() => { localStorage.setItem('projectName', projectName); }, [projectName]);
   useEffect(() => { localStorage.setItem('plateFormat', plateFormat); }, [plateFormat]);
   useEffect(() => { localStorage.setItem('plateData', JSON.stringify(plateData)); }, [plateData]);
@@ -100,26 +60,19 @@ function App() {
   useEffect(() => { localStorage.setItem('checklistItems', JSON.stringify(checklistItems)); }, [checklistItems]);
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
 
-  // --- FUNÇÕES DE MANIPULAÇÃO ---
   const getTotalReactions = () => Object.values(plateData).filter(well => well.type !== 'empty').length;
 
   const handleWellClick = (wellId, isShiftHeld) => {
     const newPlateData = { ...plateData };
+    const wellTypeInfo = { 'sample': { name: 'Amostra' }, 'standard': { name: 'Padrão' }, 'positive': { name: 'Controle +' }, 'negative': { name: 'Controle -' }, 'ntc': { name: 'NTC' }, 'blank': { name: 'Branco' } };
     const targets = isShiftHeld ? (selectedWells.includes(wellId) ? [...selectedWells] : [...selectedWells, wellId]) : [wellId];
 
-    if (!isShiftHeld) {
-      setSelectedWells([wellId]);
-    } else {
-      setSelectedWells(targets);
-    }
+    if (!isShiftHeld) setSelectedWells([wellId]);
+    else setSelectedWells(targets);
 
     targets.forEach(id => {
       const currentWell = newPlateData[id] || {};
-      newPlateData[id] = {
-        ...currentWell,
-        type: selectedWellType,
-        label: currentWell.label || `${WELL_TYPES[selectedWellType].name}`,
-      };
+      newPlateData[id] = { ...currentWell, type: selectedWellType, label: currentWell.label || `${wellTypeInfo[selectedWellType].name}` };
     });
     setPlateData(newPlateData);
   };
@@ -127,10 +80,7 @@ function App() {
   const handleWellDoubleClick = (wellId) => {
     if (plateData[wellId] && plateData[wellId].type !== 'empty') {
       setEditingWellId(wellId);
-      setEditingWellData({
-        label: plateData[wellId].label || '',
-        concentration: plateData[wellId].concentration || ''
-      });
+      setEditingWellData({ label: plateData[wellId].label || '', concentration: plateData[wellId].concentration || '' });
     }
   };
 
@@ -153,14 +103,16 @@ function App() {
       return;
     }
     const newPlateData = { ...plateData };
+    const format = { '96': { cols: 12 }, '384': { cols: 24 }, '48': { cols: 8 } }[plateFormat];
+    
     selectedWells.forEach(startWellId => {
       const startRow = startWellId.charCodeAt(0) - 65;
       const startCol = parseInt(startWellId.substring(1)) - 1;
-      const startWellData = plateData[startWellId];
+      const startWellData = newPlateData[startWellId];
       
       for (let i = 0; i < count; i++) {
         const targetCol = startCol + i;
-        if (targetCol < PLATE_FORMATS[plateFormat].cols) {
+        if (targetCol < format.cols) {
           const wellId = `${String.fromCharCode(65 + startRow)}${targetCol + 1}`;
           newPlateData[wellId] = { ...startWellData };
         }
@@ -178,26 +130,14 @@ function App() {
   const calculateMasterMix = () => {
     const totalReactions = getTotalReactions();
     if (totalReactions === 0) return [];
-    
-    const factor = marginType === 'extra' 
-      ? totalReactions + parseInt(extraSamples || 0)
-      : totalReactions * (1 + (parseInt(extraPercentage || 0) / 100));
-    
-    return reagents.map(reagent => ({
-      ...reagent,
-      totalVolume: (reagent.volumePerReaction * factor).toFixed(2)
-    }));
+    const factor = marginType === 'extra' ? totalReactions + parseInt(extraSamples || 0) : totalReactions * (1 + (parseInt(extraPercentage || 0) / 100));
+    return reagents.map(reagent => ({ ...reagent, totalVolume: (reagent.volumePerReaction * factor).toFixed(2) }));
   };
   
-  const getTotalMasterMixVolume = () => {
-    return calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2);
-  };
+  const getTotalMasterMixVolume = () => calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2);
   
   const handleExport = () => {
-    const stateToExport = {
-      projectName, plateFormat, plateData, reagents, checklistItems,
-      marginType, extraSamples, extraPercentage
-    };
+    const stateToExport = { projectName, plateFormat, plateData, reagents, checklistItems, marginType, extraSamples, extraPercentage };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToExport, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -207,9 +147,7 @@ function App() {
     downloadAnchorNode.remove();
   };
   
-  const handleImportClick = () => {
-    fileInputRef.current.click();
-  };
+  const handleImportClick = () => fileInputRef.current.click();
 
   const handleFileImport = (event) => {
     const file = event.target.files[0];
@@ -232,7 +170,7 @@ function App() {
         }
       };
       reader.readAsText(file);
-      event.target.value = null; // Reset input
+      event.target.value = null;
     }
   };
 
@@ -272,71 +210,30 @@ function App() {
           <TabsContent value="design" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-1">
-                <Card>
-                  <CardHeader><CardTitle><Settings className="h-5 w-5 mr-2 inline-block"/>Ferramentas</CardTitle></CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Formato da Placa</Label>
-                      <Select value={plateFormat} onValueChange={setPlateFormat}><SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{Object.entries(PLATE_FORMATS).map(([key, format]) => (<SelectItem key={key} value={key}>{format.name}</SelectItem>))}</SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tipo de Poço</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.entries(WELL_TYPES).filter(([key]) => key !== 'empty').map(([key, type]) => (
-                          <Button key={key} variant={selectedWellType === key ? 'default' : 'outline'} size="sm" onClick={() => setSelectedWellType(key)} className="justify-start">
-                            <div className={`w-3 h-3 rounded-full ${type.color} mr-2`} />{type.name}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Preenchimento Rápido</Label>
-                      <div className="space-y-2">
-                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleApplyReplicates(2)}><Copy className="h-4 w-4 mr-2" /> Duplicatas</Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleApplyReplicates(3)}><Copy className="h-4 w-4 mr-2" /> Triplicatas</Button>
-                        <Button variant="destructive" size="sm" className="w-full justify-start" onClick={handleClearPlate}><Trash2 className="h-4 w-4 mr-2" /> Limpar Placa</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ToolsPanel
+                  plateFormat={plateFormat}
+                  setPlateFormat={setPlateFormat}
+                  selectedWellType={selectedWellType}
+                  setSelectedWellType={setSelectedWellType}
+                  onApplyReplicates={handleApplyReplicates}
+                  onClearPlate={handleClearPlate}
+                />
               </div>
               <div className="lg:col-span-3">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Visualização da Placa</CardTitle>
-                    <CardDescription>Clique para atribuir tipo, Shift+Clique para selecionar múltiplos, Duplo Clique para editar.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex justify-center">
-                    <div className="flex flex-col items-center space-y-4">
-                      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${PLATE_FORMATS[plateFormat].cols}, minmax(0, 1fr))` }}>
-                        {Array.from({ length: PLATE_FORMATS[plateFormat].rows }, (_, row) =>
-                          Array.from({ length: PLATE_FORMATS[plateFormat].cols }, (_, col) => {
-                            const wellId = `${String.fromCharCode(65 + row)}${col + 1}`;
-                            const wellData = plateData[wellId] || { type: 'empty', label: '' };
-                            return (
-                              <WellComponent
-                                key={wellId} row={row} col={col}
-                                wellData={wellData}
-                                isSelected={selectedWells.includes(wellId)}
-                                onWellClick={handleWellClick}
-                                onWellDoubleClick={handleWellDoubleClick}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                      <div className="text-sm font-semibold text-gray-700">Total de reações: {getTotalReactions()}</div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <PlateGrid
+                  plateFormat={plateFormat}
+                  plateData={plateData}
+                  selectedWells={selectedWells}
+                  onWellClick={handleWellClick}
+                  onWellDoubleClick={handleWellDoubleClick}
+                  totalReactions={getTotalReactions()}
+                />
               </div>
             </div>
           </TabsContent>
           
           <TabsContent value="mastermix">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2"><Beaker className="h-5 w-5" />Reagentes do Master Mix</CardTitle>
@@ -348,7 +245,7 @@ function App() {
                       <div key={index} className="flex items-center space-x-2">
                         <Input value={reagent.name} onChange={(e) => { const newReagents = [...reagents]; newReagents[index].name = e.target.value; setReagents(newReagents); }} className="flex-1" placeholder="Nome do reagente" />
                         <Input type="number" step="0.1" value={reagent.volumePerReaction} onChange={(e) => { const newReagents = [...reagents]; newReagents[index].volumePerReaction = parseFloat(e.target.value) || 0; setReagents(newReagents); }} className="w-20" placeholder="µL" />
-                        <Button variant="outline" size="sm" onClick={() => { setReagents(reagents.filter((_, i) => i !== index)); }}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" onClick={() => { setReagents(reagents.filter((_, i) => i !== index)); }}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     ))}
                   </div>
@@ -357,16 +254,8 @@ function App() {
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Margem de Segurança</Label>
                     <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input type="radio" id="extra-samples" name="margin" checked={marginType === 'extra'} onChange={() => setMarginType('extra')} />
-                        <Label htmlFor="extra-samples">Amostras Extras</Label>
-                        {marginType === 'extra' && <Input type="number" value={extraSamples} onChange={(e) => setExtraSamples(parseInt(e.target.value))} className="w-20" min="0" />}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input type="radio" id="extra-percentage" name="margin" checked={marginType === 'percentage'} onChange={() => setMarginType('percentage')} />
-                        <Label htmlFor="extra-percentage">Porcentagem Extra (%)</Label>
-                        {marginType === 'percentage' && <Input type="number" value={extraPercentage} onChange={(e) => setExtraPercentage(parseInt(e.target.value))} className="w-20" min="0" max="100" />}
-                      </div>
+                      <div className="flex items-center space-x-2"><input type="radio" id="extra-samples" name="margin" checked={marginType === 'extra'} onChange={() => setMarginType('extra')} /><Label htmlFor="extra-samples">Amostras Extras</Label>{marginType === 'extra' && <Input type="number" value={extraSamples} onChange={(e) => setExtraSamples(parseInt(e.target.value) || 0)} className="w-20" min="0" />}</div>
+                      <div className="flex items-center space-x-2"><input type="radio" id="extra-percentage" name="margin" checked={marginType === 'percentage'} onChange={() => setMarginType('percentage')} /><Label htmlFor="extra-percentage">Porcentagem Extra (%)</Label>{marginType === 'percentage' && <Input type="number" value={extraPercentage} onChange={(e) => setExtraPercentage(parseInt(e.target.value) || 0)} className="w-20" min="0" max="100" />}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -379,9 +268,7 @@ function App() {
                       <table className="w-full text-sm">
                         <thead><tr className="border-b"><th className="text-left p-2">Reagente</th><th className="text-right p-2">Vol/Reação (µL)</th><th className="text-right p-2">Vol Total (µL)</th></tr></thead>
                         <tbody>
-                          {calculateMasterMix().map((reagent, index) => (
-                            <tr key={index} className="border-b"><td className="p-2">{reagent.name}</td><td className="p-2 text-right">{reagent.volumePerReaction}</td><td className="p-2 text-right font-semibold">{reagent.totalVolume}</td></tr>
-                          ))}
+                          {calculateMasterMix().map((reagent, index) => ( <tr key={index} className="border-b"><td className="p-2">{reagent.name}</td><td className="p-2 text-right">{reagent.volumePerReaction}</td><td className="p-2 text-right font-semibold">{reagent.totalVolume}</td></tr> ))}
                         </tbody>
                       </table>
                     </div>
@@ -407,11 +294,7 @@ function App() {
                 <div className="space-y-3">
                   {checklistItems.map((item, index) => (
                     <div key={index} className="flex items-start space-x-3">
-                      <input type="checkbox" id={`item-${index}`} checked={completedItems.includes(index)}
-                        onChange={(e) => {
-                          setCompletedItems(prev => e.target.checked ? [...prev, index] : prev.filter(i => i !== index))
-                        }} className="mt-1 h-4 w-4"
-                      />
+                      <input type="checkbox" id={`item-${index}`} checked={completedItems.includes(index)} onChange={(e) => { setCompletedItems(prev => e.target.checked ? [...prev, index] : prev.filter(i => i !== index)) }} className="mt-1 h-4 w-4" />
                       <Label htmlFor={`item-${index}`} className={`flex-1 ${completedItems.includes(index) ? 'line-through text-gray-500' : ''}`}>{item}</Label>
                     </div>
                   ))}
@@ -430,13 +313,12 @@ function App() {
         </Tabs>
       </main>
 
-      {/* Dialogs */}
       <Dialog open={!!editingWellId} onOpenChange={() => setEditingWellId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Editar Poço {editingWellId}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label htmlFor="well-label">Rótulo</Label><Input id="well-label" value={editingWellData.label} onChange={(e) => setEditingWellData(d => ({ ...d, label: e.target.value }))} /></div>
-            <div className="space-y-2"><Label htmlFor="well-concentration">Concentração</Label><Input id="well-concentration" value={editingWellData.concentration} onChange={(e) => setEditingWellData(d => ({ ...d, concentration: e.g.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="well-concentration">Concentração</Label><Input id="well-concentration" value={editingWellData.concentration} onChange={(e) => setEditingWellData(d => ({ ...d, concentration: e.target.value }))} /></div>
           </div>
           <DialogFooter><Button onClick={handleSaveWellDetails}>Salvar</Button></DialogFooter>
         </DialogContent>
