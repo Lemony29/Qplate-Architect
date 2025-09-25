@@ -1,6 +1,11 @@
+// src/App.jsx - VERSÃO COMPLETA E CORRIGIDA
+
 import { useState, useEffect, useRef } from 'react'
+// Nossos novos componentes importados
 import { ToolsPanel } from './components/ToolsPanel'
 import { PlateGrid } from './components/PlateGrid'
+
+// O resto das dependências de UI e ícones
 import { Button } from '@/components/ui/button.jsx'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -15,10 +20,11 @@ import {
 } from 'lucide-react'
 import './App.css'
 
+// Constantes
 const INITIAL_CHECKLIST = [
   'Degelar todos os reagentes e mantê-los no gelo', 'Vortexar e centrifugar brevemente todos os reagentes',
   'Preparar o Master Mix na bancada conforme a calculadora', 'Homogeneizar o Master Mix e distribuir nos poços',
-  'Adicionar amostras/padrões/controles nos poços correspondentes', 'Selar a placa com filme adesivo óptico',
+  'Adicionar amostras/padrões/controles nos poços correspondentes', 'Selar o placa com filme adesivo óptico',
   'Centrifugar a placa brevemente para remover bolhas', 'Colocar a placa no termociclador e iniciar a corrida'
 ];
 const INITIAL_REAGENTS = [
@@ -26,8 +32,18 @@ const INITIAL_REAGENTS = [
   { name: 'dNTPs (10mM)', volumePerReaction: 0.4 }, { name: 'Primer Forward (10µM)', volumePerReaction: 0.5 },
   { name: 'Primer Reverse (10µM)', volumePerReaction: 0.5 }, { name: 'Água livre de nucleases', volumePerReaction: 16.4 }
 ];
+const PLATE_FORMATS = {
+  '96': { name: '96 poços (8x12)', rows: 8, cols: 12 },
+  '384': { name: '384 poços (16x24)', rows: 16, cols: 24 },
+  '48': { name: '48 poços (6x8)', rows: 6, cols: 8 }
+};
+const WELL_TYPES = {
+  sample: { name: 'Amostra' }, standard: { name: 'Padrão' }, positive: { name: 'Controle +' },
+  negative: { name: 'Controle -' }, ntc: { name: 'NTC' }, blank: { name: 'Branco' }
+};
 
 function App() {
+  // --- ESTADO DA APLICAÇÃO (O CÉREBRO) ---
   const [projectName, setProjectName] = useState(() => localStorage.getItem('projectName') || 'Novo Projeto');
   const [plateFormat, setPlateFormat] = useState(() => localStorage.getItem('plateFormat') || '96');
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
@@ -50,6 +66,7 @@ function App() {
   
   const fileInputRef = useRef(null);
 
+  // --- EFEITOS (SALVAMENTO AUTOMÁTICO) ---
   useEffect(() => { localStorage.setItem('projectName', projectName); }, [projectName]);
   useEffect(() => { localStorage.setItem('plateFormat', plateFormat); }, [plateFormat]);
   useEffect(() => { localStorage.setItem('plateData', JSON.stringify(plateData)); }, [plateData]);
@@ -60,11 +77,11 @@ function App() {
   useEffect(() => { localStorage.setItem('checklistItems', JSON.stringify(checklistItems)); }, [checklistItems]);
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
 
+  // --- FUNÇÕES DE MANIPULAÇÃO (AÇÕES) ---
   const getTotalReactions = () => Object.values(plateData).filter(well => well.type !== 'empty').length;
 
   const handleWellClick = (wellId, isShiftHeld) => {
     const newPlateData = { ...plateData };
-    const wellTypeInfo = { 'sample': { name: 'Amostra' }, 'standard': { name: 'Padrão' }, 'positive': { name: 'Controle +' }, 'negative': { name: 'Controle -' }, 'ntc': { name: 'NTC' }, 'blank': { name: 'Branco' } };
     const targets = isShiftHeld ? (selectedWells.includes(wellId) ? [...selectedWells] : [...selectedWells, wellId]) : [wellId];
 
     if (!isShiftHeld) setSelectedWells([wellId]);
@@ -72,7 +89,7 @@ function App() {
 
     targets.forEach(id => {
       const currentWell = newPlateData[id] || {};
-      newPlateData[id] = { ...currentWell, type: selectedWellType, label: currentWell.label || `${wellTypeInfo[selectedWellType].name}` };
+      newPlateData[id] = { ...currentWell, type: selectedWellType, label: currentWell.label || `${WELL_TYPES[selectedWellType].name}` };
     });
     setPlateData(newPlateData);
   };
@@ -103,7 +120,7 @@ function App() {
       return;
     }
     const newPlateData = { ...plateData };
-    const format = { '96': { cols: 12 }, '384': { cols: 24 }, '48': { cols: 8 } }[plateFormat];
+    const format = PLATE_FORMATS[plateFormat];
     
     selectedWells.forEach(startWellId => {
       const startRow = startWellId.charCodeAt(0) - 65;
@@ -174,6 +191,7 @@ function App() {
     }
   };
 
+  // --- JSX (INTERFACE) ---
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="bg-white shadow-sm border-b sticky top-0 z-10">
@@ -202,9 +220,9 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="design"><Grid3X3 className="h-4 w-4 mr-2" /> Design da Placa</TabsTrigger>
-            <TabsTrigger value="mastermix"><Calculator className="h-4 w-4 mr-2" /> Master Mix</TabsTrigger>
-            <TabsTrigger value="checklist"><CheckSquare className="h-4 w-4 mr-2" /> Mini-POP</TabsTrigger>
+            <TabsTrigger value="design" className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" /> Design da Placa</TabsTrigger>
+            <TabsTrigger value="mastermix" className="flex items-center gap-2"><Calculator className="h-4 w-4" /> Master Mix</TabsTrigger>
+            <TabsTrigger value="checklist" className="flex items-center gap-2"><CheckSquare className="h-4 w-4" /> Mini-POP</TabsTrigger>
           </TabsList>
           
           <TabsContent value="design" className="space-y-6">
@@ -233,7 +251,7 @@ function App() {
           </TabsContent>
           
           <TabsContent value="mastermix">
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2"><Beaker className="h-5 w-5" />Reagentes do Master Mix</CardTitle>
