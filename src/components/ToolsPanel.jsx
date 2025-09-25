@@ -1,4 +1,4 @@
-// src/components/ToolsPanel.jsx - VERSÃO COM OPÇÃO DE REMOVER ALVO
+// src/components/ToolsPanel.jsx
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,9 +17,9 @@ export function ToolsPanel({
   setPlateFormat,
   targets,
   activeTargetId,
-  setActiveTargetId,
+  onSelectTarget,
   onAddTarget,
-  onDeleteTarget,
+  onRemoveTarget,
   onClearPlate
 }) {
   return (
@@ -30,7 +30,7 @@ export function ToolsPanel({
           <span>Ferramentas</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Formato da Placa</Label>
           <Select value={plateFormat} onValueChange={setPlateFormat}>
@@ -46,37 +46,29 @@ export function ToolsPanel({
         <div className="space-y-2">
           <Label>Alvos (Genes / Controlos)</Label>
           <div className="space-y-2">
-            {targets.map((target) => (
+            {targets.filter(t => t.id !== 'empty').map(target => (
               <div key={target.id} className="flex items-center gap-2">
                 <Button
                   variant={activeTargetId === target.id ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActiveTargetId(target.id)}
-                  className="justify-start flex-grow"
+                  onClick={() => onSelectTarget(target.id)}
+                  className={`w-full justify-start ring-offset-background transition-all duration-150 ${activeTargetId === target.id ? 'ring-2 ring-blue-500' : ''}`}
                 >
-                  <div className={`w-3 h-3 rounded-full ${target.color} mr-2`} />
+                  <div className="w-4 h-4 rounded-full mr-2 border" style={{ backgroundColor: target.color }} />
                   <span className="truncate">{target.name}</span>
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.stopPropagation(); // Impede que o alvo seja selecionado ao clicar na lixeira
-                    onDeleteTarget(target.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => onRemoveTarget(target.id)}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground"/>
                 </Button>
               </div>
             ))}
+            <Button variant="outline" size="sm" className="w-full" onClick={onAddTarget}>
+              <Plus className="h-4 w-4 mr-2" /> Adicionar Alvo
+            </Button>
           </div>
-          <Button variant="outline" size="sm" className="w-full justify-center mt-2" onClick={onAddTarget}>
-            <Plus className="h-4 w-4 mr-2" /> Adicionar Alvo
-          </Button>
         </div>
 
-        <div className="space-y-2 pt-4 border-t">
+        <div className="space-y-2">
           <Label>Ações da Placa</Label>
           <Button variant="destructive" size="sm" className="w-full justify-start" onClick={onClearPlate}>
             <Trash2 className="h-4 w-4 mr-2" /> Limpar Placa
