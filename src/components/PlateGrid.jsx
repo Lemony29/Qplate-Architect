@@ -22,6 +22,11 @@ const Well = ({ row, col, wellData, isSelected, onWellClick, onWellDoubleClick }
   const wellId = `${String.fromCharCode(65 + row)}${col + 1}`;
   const wellTypeInfo = WELL_TYPES[wellData.type];
   
+  // Lógica para decidir o que exibir dentro do poço
+  const displayText = wellData.label 
+    ? wellData.label.substring(0, 3) // Mostra abreviação do rótulo se existir
+    : col + 1; // Mostra o número da coluna (poço) por padrão
+
   return (
     <div
       className={`w-8 h-8 rounded-full cursor-pointer border-2 flex items-center justify-center text-xs font-medium select-none
@@ -32,7 +37,7 @@ const Well = ({ row, col, wellData, isSelected, onWellClick, onWellDoubleClick }
       onDoubleClick={() => onWellDoubleClick(wellId)}
       title={`${wellId}: ${wellData.label || wellTypeInfo.name}`}
     >
-      {wellData.label ? wellData.label.substring(0, 3) : ''}
+      {wellData.type !== 'empty' && displayText}
     </div>
   );
 };
@@ -78,3 +83,4 @@ export function PlateGrid({
     </Card>
   );
 }
+
