@@ -47,37 +47,51 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
+}
 
+@layer base {
+  * {
+    @apply border-border;
+  }
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/* --- REGRAS DE IMPRESSÃO ATUALIZADAS --- */
+/* Por padrão, esconde o layout de impressão na tela */
 .print-only {
   display: none;
 }
 
+/* --- Estilos de Impressão --- */
 @media print {
+  /* Esconde tudo que não deve ser impresso */
   .no-print {
-    display: none;
+    display: none !important;
   }
   
+  /* Garante que o layout de impressão seja visível */
   .print-only {
-    display: block;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    padding: 1cm;
-    font-family: Arial, sans-serif;
-    -webkit-print-color-adjust: exact; /* Força cores de fundo no Chrome */
-    print-color-adjust: exact; /* Padrão W3C atualizado */
+    display: block !important;
   }
 
+  /* Ajustes finos para a página de impressão */
   @page {
-    size: A4 landscape;
-    margin: 0;
+    size: A4;
+    margin: 1cm; /* Reduz as margens da página */
+  }
+
+  body {
+    -webkit-print-color-adjust: exact; /* Força cores de fundo no Chrome */
+    print-color-adjust: exact; /* Padrão W3C para forçar cores */
+    font-size: 10pt; /* Reduz o tamanho da fonte globalmente para impressão */
+  }
+
+  /* Reduz o tamanho dos poços especificamente para a impressão */
+  .print-only .print-well {
+    min-width: 60px; /* Ajuste este valor se necessário */
+    padding: 2px;
+    font-size: 8pt;
   }
 }
 
