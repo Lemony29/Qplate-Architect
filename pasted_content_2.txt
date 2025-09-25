@@ -1,0 +1,109 @@
+Aja como um Gerente de Produto de Software e Desenvolvedor Sênior encarregado de criar a especificação para um novo aplicativo SaaS (Software as a Service) chamado "QPlate Architect". O público-alvo são pesquisadores de laboratório, cientistas, e estudantes de biologia molecular que realizam experimentos de qPCR, PCR, ELISA, e outros ensaios baseados em placas.
+
+[OBJETIVO DO PROJETO]
+Desenvolver um aplicativo web intuitivo e poderoso para o design, gerenciamento e documentação de experimentos em microplacas. O aplicativo deve resolver as ineficiências e os riscos de erro associados ao uso de planilhas genéricas (como o Excel) e oferecer funcionalidades específicas para o trabalho de laboratório, aumentando a reprodutibilidade e a eficiência.
+
+[REQUISITOS FUNCIONAIS CORE]
+
+1. Módulo de Design de Placa Dinâmico e Editável:
+
+User Story: "Como pesquisador, eu quero poder escolher entre diferentes formatos de placa e modificar livremente o layout para que eu possa planejar qualquer tipo de experimento, desde um simples screening até uma curva de quantificação complexa."
+
+Especificações:
+
+Suporte para múltiplos formatos de placa, incluindo, mas não limitado a:
+
+96 poços (formato 8x12)
+
+384 poços (formato 16x24)
+
+48 poços
+
+Tiras de 8 ou 12 poços (strips), tanto na vertical quanto na horizontal.
+
+A arquitetura deve permitir a adição de layouts customizados no futuro.
+
+Interface de "arrastar e soltar" (drag-and-drop) ou "clique e pinte" para atribuir conteúdos aos poços.
+
+Capacidade de definir e colorir diferentes tipos de poços:
+
+Amostras (com nomes editáveis, ex: "Cérebro-1", "Fígado-2")
+
+Padrões (para curva de quantificação, ex: "P1", "P2")
+
+Controles (Positivo, Negativo, NTC - No Template Control)
+
+Brancos (Blanks)
+
+Ferramentas de preenchimento rápido: replicatas automáticas (duplicatas, triplicatas) na vertical ou horizontal, preenchimento de séries, etc.
+
+2. Módulo de Calculadora de Master Mix Inteligente:
+
+User Story: "Como gerente de laboratório, eu quero que o sistema calcule automaticamente o volume de reagentes para o meu Master Mix, incluindo uma margem de segurança para erros de pipetagem, para que eu evite o desperdício de reagentes caros e garanta que nunca falte mix durante a montagem do experimento."
+
+Especificações:
+
+A calculadora deve ser populada automaticamente com base no número total de reações definidas na placa (ex: 25 amostras em triplicata = 75 reações).
+
+O usuário deve poder inserir a lista de reagentes (ex: Taq Polymerase, Buffer, Primer Fwd, Primer Rev, Sonda, Água).
+
+Para cada reagente, o usuário insere o volume por reação (ex: Taq = 0.2 µL/reação).
+
+Inclusão de 'Erro de Pipetagem' (Overage):
+
+O usuário deve ter a opção de adicionar um volume extra para compensar perdas. Isso pode ser configurado de duas formas:
+
+Porcentagem: Ex: "adicionar 10% de volume extra".
+
+Número de Reações Extras: Ex: "calcular para +2 reações".
+
+Saída (Output): O sistema deve exibir uma tabela clara com:
+
+Volume por reação (1x).
+
+Volume total final (para N reações + erro de pipetagem).
+
+3. Módulo de Checklist Interativo (Mini-POP):
+
+User Story: "Como um novo estudante no laboratório, eu quero um guia passo a passo que apareça quando eu estiver pronto para montar minha placa, para que eu possa seguir o protocolo corretamente e reduzir a chance de erros."
+
+Especificações:
+
+Após a finalização do design da placa, um botão "Preparar Placa" deve estar disponível.
+
+Ao ser clicado, um pop-up ou um painel lateral (o "Mini-POP") deve surgir com uma checklist interativa das etapas de preparação.
+
+O checklist deve ser editável/customizável pelo usuário ou administrador do laboratório.
+
+Exemplo de Checklist Padrão:
+
+[ ] Degelar todos os reagentes e mantê-los no gelo.
+
+[ ] Vortexar e centrifugar brevemente todos os reagentes.
+
+[ ] Preparar o Master Mix na bancada (em um microtubo) conforme a calculadora.
+
+[ ] Homogeneizar o Master Mix e distribuir o volume 'X' em cada poço/tira.
+
+[ ] Adicionar amostras/padrões/controles nos poços correspondentes.
+
+[ ] Selar a placa/tiras com filme adesivo óptico.
+
+[ ] Centrifugar a placa brevemente para remover bolhas.
+
+[ ] Colocar a placa no termociclador e iniciar a corrida.
+
+O usuário pode marcar cada passo como concluído.
+
+[REQUISITOS NÃO FUNCIONAIS E UX/UI]
+
+Exportação: O layout da placa e os cálculos do Master Mix devem ser exportáveis para formatos comuns (PDF para documentação, CSV/XLSX para análise de dados).
+
+Templates: Usuários devem poder salvar layouts de placa como templates para reutilização rápida (ex: "Template de Curva Padrão Gene X").
+
+Interface Limpa: O design deve ser minimalista, sem poluição visual, com foco total na placa e nos dados.
+
+Responsividade: O aplicativo deve ser funcional em tablets, permitindo o uso diretamente na bancada do laboratório.
+
+[DELIVERABLE]
+Gere um documento de especificação de produto baseado neste prompt, detalhando as User Stories, o fluxo do usuário (user flow) desde a criação de um novo projeto até a exportação do layout final, e mockups de baixo nível (wireframes) para as telas principais: (1) Tela de Design da Placa, (2) Calculadora de Master Mix, e (3) o pop-up do Mini-POP.
