@@ -1,10 +1,9 @@
-// src/App.jsx - VERSÃO COMPLETA E CORRIGIDA
-
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ToolsPanel } from './components/ToolsPanel';
 import { PlateGrid } from './components/PlateGrid';
 import { MasterMixCalculator } from './components/MasterMixCalculator';
 import { Checklist } from './components/Checklist';
+import { PrintLayout } from './components/PrintLayout';
 import { Button } from '@/components/ui/button.jsx';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,8 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw } from 'lucide-react';
 import { customAlphabet } from 'nanoid';
+import { HexColorPicker } from 'react-colorful';
 import './App.css';
-import { PrintLayout } from './components/PrintLayout';
 
 const nanoid = customAlphabet('1234567890abcdef', 10);
 
@@ -30,7 +29,6 @@ const INITIAL_REAGENTS = [
   { name: 'dNTPs (10mM)', volumePerReaction: 0.4 }, { name: 'Primer Forward (10µM)', volumePerReaction: 0.5 },
   { name: 'Primer Reverse (10µM)', volumePerReaction: 0.5 }, { name: 'Água livre de nucleases', volumePerReaction: 16.4 }
 ];
-
 const defaultTargets = [
     { id: 'empty', name: 'Vazio', color: '#FFFFFF' },
     { id: nanoid(), name: 'ACTB', color: '#3b82f6' },
@@ -43,7 +41,19 @@ function App() {
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
   const [currentTab, setCurrentTab] = useState('design');
   
-  const [targets, setTargets] = useState(() => JSON.parse(localStorage.getItem('targets')) || defaultTargets);
+  const [targets, setTargets] = useState(() => {
+    const savedTargets = localStorage.getItem('targets');
+    if (savedTargets) {
+      const parsed = JSON.parse(savedTargets);
+      // Garante que a ferramenta 'Vazio' sempre exista
+      if (!parsed.find(t => t.id === 'empty')) {
+        return [{ id: 'empty', name: 'Vazio', color: '#FFFFFF' }, ...parsed];
+      }
+      return parsed;
+    }
+    return defaultTargets;
+  });
+  
   const [activeTargetId, setActiveTargetId] = useState(() => localStorage.getItem('activeTargetId') || targets.find(t => t.id !== 'empty')?.id);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -59,6 +69,10 @@ function App() {
   
   const [editingWellId, setEditingWellId] = useState(null);
   const [editingWellData, setEditingWellData] = useState({ sampleName: '' });
+  
+  const [isAddTargetDialogOpen, setIsAddTargetDialogOpen] = useState(false);
+  const [newTarget, setNewTarget] = useState({ name: '', color: '#aabbcc' });
+
   const [isChecklistEditorOpen, setChecklistEditorOpen] = useState(false);
   const [checklistText, setChecklistText] = useState(checklistItems.join('\n'));
   
@@ -77,19 +91,23 @@ function App() {
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
 
   const handleAddTarget = () => {
-    const name = prompt("Nome do novo alvo (gene/controlo):");
-    if (name) {
-      const newTarget = {
-        id: nanoid(),
-        name,
-        color: `#${Math.floor(Math.random()*16777215).toString(16).padEnd(6, '0')}`
-      };
-      setTargets(prev => [...prev, newTarget]);
-      setActiveTargetId(newTarget.id);
+    setNewTarget({ name: '', color: `#${Math.floor(Math.random()*16777215).toString(16).padEnd(6, '0')}` });
+    setIsAddTargetDialogOpen(true);
+  };
+
+  const handleSaveNewTarget = () => {
+    if (newTarget.name.trim() === '') {
+        alert('O nome do alvo não pode estar vazio.');
+        return;
     }
+    const finalTarget = { id: nanoid(), name: newTarget.name.trim(), color: newTarget.color };
+    setTargets(prev => [...prev, finalTarget]);
+    setActiveTargetId(finalTarget.id);
+    setIsAddTargetDialogOpen(false);
   };
 
   const handleRemoveTarget = (targetIdToRemove) => {
+    if (targetIdToRemove === 'empty') return;
     setTargets(prev => prev.filter(t => t.id !== targetIdToRemove));
     setPlateData(prev => {
         const newData = { ...prev };
@@ -105,84 +123,138 @@ function App() {
     }
   };
   
-  const updateWells = (wellsToUpdate) => {
+  const updateWells = useCallback((wellsToUpdate) => {
     setPlateData(prev => {
       const newData = { ...prev };
       wellsToUpdate.forEach(wellId => {
-        newData[wellId] = { ...newData[wellId], targetId: activeTargetId };
+        if (activeTargetId === 'empty') {
+          delete newData[wellId];
+        } else {
+          newData[wellId] = { ...newData[wellId], targetId: activeTargetId };
+        }
       });
       return newData;
     });
-  };
+  }, [activeTargetId]);
 
-  const handleWellMouseDown = (wellId) => {
+  const handleWellMouseDown = useCallback((wellId) => {
     setIsDragging(true);
     const newDraggedOverWells = new Set([wellId]);
     setDraggedOverWells(newDraggedOverWells);
     updateWells(newDraggedOverWells);
-  };
+  }, [updateWells]);
   
-  const handleWellMouseEnter = (wellId) => {
+  const handleWellMouseEnter = useCallback((wellId) => {
     if (isDragging) {
       setDraggedOverWells(prev => new Set(prev).add(wellId));
     }
-  };
+  }, [isDragging]);
   
-  const handleWellMouseUp = () => {
+  const handleWellMouseUp = useCallback(() => {
     if(isDragging) {
       updateWells(draggedOverWells);
       setIsDragging(false);
       setDraggedOverWells(new Set());
     }
-  };
+  }, [isDragging, draggedOverWells, updateWells]);
 
-  const handleWellDoubleClick = (wellId) => {
+  const handleWellDoubleClick = useCallback((wellId) => {
     setEditingWellId(wellId);
     setEditingWellData({ sampleName: plateData[wellId]?.sampleName || '' });
-  };
+  }, [plateData]);
   
-  const handleSaveWellDetails = () => {
+  const handleSaveWellDetails = useCallback(() => {
     if (!editingWellId) return;
     setPlateData(prev => ({
       ...prev,
       [editingWellId]: { ...prev[editingWellId], ...editingWellData }
     }));
     setEditingWellId(null);
-  };
+  }, [editingWellId, editingWellData]);
 
-  const handleClearPlate = () => {
+  const handleClearPlate = useCallback(() => {
     if (window.confirm('Tem certeza que deseja limpar toda a placa?')) {
       setPlateData({});
     }
-  };
+  }, []);
 
-  const handleSaveChecklist = () => {
+  const handleSaveChecklist = useCallback(() => {
     const newItems = checklistText.split('\n').filter(item => item.trim() !== '');
     setChecklistItems(newItems);
     setChecklistEditorOpen(false);
-  };
+  }, [checklistText]);
 
-  const handleItemToggle = (index) => {
+  const handleItemToggle = useCallback((index) => {
     setCompletedItems(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
-  };
+  }, []);
 
-  const calculateMasterMix = () => {
-    const totalReactions = Object.values(plateData).filter(well => well.targetId && well.targetId !== 'empty').length;
+  const calculateMasterMix = useCallback(() => {
+    const totalReactions = Object.values(plateData).filter(well => well && well.targetId !== 'empty').length;
     if (totalReactions === 0) return [];
     const factor = marginType === 'extra' ? totalReactions + parseInt(extraSamples || 0) : totalReactions * (1 + (parseInt(extraPercentage || 0) / 100));
     return reagents.map(reagent => ({ ...reagent, totalVolume: (reagent.volumePerReaction * factor).toFixed(2) }));
+  }, [plateData, marginType, extraSamples, extraPercentage, reagents]);
+  
+  const getTotalMasterMixVolume = useCallback(() => calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2), [calculateMasterMix]);
+  
+  const handleExport = () => {
+    const stateToExport = {
+      projectName, plateFormat, plateData, targets, checklistItems,
+      marginType, extraSamples, extraPercentage, activeTargetId
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToExport, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `${projectName.replace(/\s+/g, '_')}.qplate.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
   };
   
-  const getTotalMasterMixVolume = () => calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2);
-  
-  const handleExport = () => { /* ...código existente... */ };
-  const handleImportClick = () => { /* ...código existente... */ };
-  const handleFileImport = (event) => { /* ...código existente... */ };
+  const handleImportClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileImport = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedState = JSON.parse(e.target.result);
+          setProjectName(importedState.projectName || 'Projeto Importado');
+          setPlateFormat(importedState.plateFormat || '96');
+          setPlateData(importedState.plateData || {});
+          setTargets(importedState.targets || defaultTargets);
+          setChecklistItems(importedState.checklistItems || INITIAL_CHECKLIST);
+          setMarginType(importedState.marginType || 'extra');
+          setExtraSamples(importedState.extraSamples || 2);
+          setExtraPercentage(importedState.extraPercentage || 10);
+          setActiveTargetId(importedState.activeTargetId || defaultTargets.find(t => t.id !== 'empty')?.id);
+          alert('Projeto importado com sucesso!');
+        } catch (error) {
+          alert('Erro ao ler o ficheiro. Verifique se o formato é JSON válido.');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = null;
+    }
+  };
 
   return (
     <>
       <div className="print-only">
-        <PrintLayout plateData={plateData} targets={targets} plateFormat={plateFormat} projectName={projectName}/>
+        <PrintLayout 
+          plateData={plateData} 
+          targets={targets} 
+          plateFormat={plateFormat} 
+          projectName={projectName}
+          calculatedMix={calculateMasterMix()}
+          totalMixVolume={getTotalMasterMixVolume()}
+           marginType={marginType}
+           extraSamples={extraSamples}
+           extraPercentage={extraPercentage}
+        />
       </div>
       <div className="min-h-screen bg-gray-50 no-print">
         <header className="bg-white shadow-sm border-b sticky top-0 z-20">
@@ -219,8 +291,6 @@ function App() {
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6" onMouseUp={handleWellMouseUp}>
                 <div className="lg:col-span-1">
                   <ToolsPanel
-                    plateFormat={plateFormat}
-                    setPlateFormat={setPlateFormat}
                     targets={targets}
                     activeTargetId={activeTargetId}
                     onSelectTarget={setActiveTargetId}
@@ -248,7 +318,7 @@ function App() {
               <MasterMixCalculator
                 reagents={reagents}
                 setReagents={setReagents}
-                totalReactions={Object.values(plateData).filter(well => well.targetId && well.targetId !== 'empty').length}
+                totalReactions={Object.values(plateData).filter(well => well && well.targetId !== 'empty').length}
                 marginType={marginType}
                 setMarginType={setMarginType}
                 extraSamples={extraSamples}
@@ -271,6 +341,44 @@ function App() {
             </TabsContent>
           </Tabs>
         </main>
+
+        <Dialog open={isAddTargetDialogOpen} onOpenChange={setIsAddTargetDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Novo Alvo</DialogTitle>
+              <DialogDescription>
+                Dê um nome e escolha uma cor para o seu novo gene ou controlo.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="target-name">Nome do Alvo</Label>
+                <Input 
+                  id="target-name" 
+                  value={newTarget.name} 
+                  onChange={(e) => setNewTarget(prev => ({ ...prev, name: e.target.value }))} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cor do Alvo</Label>
+                <div className="flex justify-center items-center py-2">
+                  <HexColorPicker 
+                    color={newTarget.color} 
+                    onChange={(color) => setNewTarget(prev => ({ ...prev, color }))} 
+                  />
+                </div>
+                <Input 
+                    value={newTarget.color}
+                    onChange={(e) => setNewTarget(prev => ({...prev, color: e.target.value}))}
+                    className="mt-2 w-full font-mono"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveNewTarget}>Salvar Alvo</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={!!editingWellId} onOpenChange={() => setEditingWellId(null)}>
           <DialogContent>
