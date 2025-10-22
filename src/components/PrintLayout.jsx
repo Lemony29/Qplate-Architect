@@ -1,16 +1,15 @@
 // src/components/PrintLayout.jsx
 import React from 'react';
 
-// Função para verificar se uma cor HEX é escura
 function isColorDark(hexColor) {
   if (!hexColor || hexColor.length < 4) return false;
-  const color = hexColor.substring(1); // remove #
+  const color = hexColor.substring(1);
   const rgb = parseInt(color, 16);
   const r = (rgb >> 16) & 0xff;
   const g = (rgb >> 8) & 0xff;
   const b = (rgb >> 0) & 0xff;
-  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b; // per ITU-R BT.709
-  return luma < 140; // Limiar ajustado para bom contraste
+  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luma < 140;
 }
 
 export function PrintLayout({ 
@@ -22,7 +21,8 @@ export function PrintLayout({
   totalMixVolume,
   marginType,
   extraSamples,
-  extraPercentage
+  extraPercentage,
+  manualReactionCount // Recebe a contagem manual
 }) {
   const plateInfo = {
     '96': { rows: 8, cols: 12, name: '96 poços (8x12)' },
@@ -32,17 +32,18 @@ export function PrintLayout({
 
   const getTargetById = (id) => targets.find(t => t.id === id);
 
-  const baseReactions = Object.values(plateData).filter(well => well && well.targetId !== 'empty').length;
+  // Usa a contagem manual para o texto da impressão
+  const baseReactions = parseInt(manualReactionCount || 0); 
   let reactionCountText = '';
   if (baseReactions > 0) {
       if (marginType === 'extra') {
           const extra = parseInt(extraSamples || 0);
           const total = baseReactions + extra;
-          reactionCountText = `(para ${total} reações = ${baseReactions} da placa + ${extra} extra)`;
+          reactionCountText = `(para ${total} reações = ${baseReactions} inserido + ${extra} extra)`;
       } else {
           const percentage = parseInt(extraPercentage || 0);
           const total = Math.ceil(baseReactions * (1 + (percentage / 100)));
-          reactionCountText = `(para ${total} reações = ${baseReactions} da placa + ${percentage}% extra)`;
+          reactionCountText = `(para ${total} reações = ${baseReactions} inserido + ${percentage}% extra)`;
       }
   }
 
@@ -102,7 +103,7 @@ export function PrintLayout({
                     <p className="text-xs truncate">{well.sampleName || ''}</p>
                   </div>
                 )}
-                <div />
+                <div /> 
               </div>
             );
           })

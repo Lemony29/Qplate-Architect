@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react'; // Removido useCallback
 import { ToolsPanel } from './components/ToolsPanel';
 import { PlateGrid } from './components/PlateGrid';
 import { MasterMixCalculator } from './components/MasterMixCalculator';
@@ -11,13 +11,14 @@ import { Separator } from '@/components/ui/separator.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw } from 'lucide-react';
+import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Printer } from 'lucide-react'; // Adicionado Printer
 import { customAlphabet } from 'nanoid';
 import { HexColorPicker } from 'react-colorful';
 import './App.css';
 
 const nanoid = customAlphabet('1234567890abcdef', 10);
 
+// ... (Constantes INITIAL_CHECKLIST, INITIAL_REAGENTS, defaultTargets permanecem as mesmas) ...
 const INITIAL_CHECKLIST = [
   'Degelar todos os reagentes e mantê-los no gelo', 'Vortexar e centrifugar brevemente todos os reagentes',
   'Preparar o Master Mix na bancada conforme a calculadora', 'Homogeneizar o Master Mix e distribuir nos poços',
@@ -30,12 +31,14 @@ const INITIAL_REAGENTS = [
   { name: 'Primer Reverse (10µM)', volumePerReaction: 0.5 }, { name: 'Água livre de nucleases', volumePerReaction: 16.4 }
 ];
 const defaultTargets = [
-    { id: 'empty', name: 'Vazio', color: '#FFFFFF' },
+    { id: 'empty', name: 'Vazio', color: '#FFFFFF' }, // Ferramenta Vazio/Apagar
     { id: nanoid(), name: 'ACTB', color: '#3b82f6' },
     { id: nanoid(), name: 'GAPDH', color: '#22c55e' },
 ];
 
+
 function App() {
+  // --- ESTADO DA APLICAÇÃO ---
   const [projectName, setProjectName] = useState(() => localStorage.getItem('projectName') || 'Novo Projeto');
   const [plateFormat, setPlateFormat] = useState(() => localStorage.getItem('plateFormat') || '96');
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
@@ -45,7 +48,6 @@ function App() {
     const savedTargets = localStorage.getItem('targets');
     if (savedTargets) {
       const parsed = JSON.parse(savedTargets);
-      // Garante que a ferramenta 'Vazio' sempre exista
       if (!parsed.find(t => t.id === 'empty')) {
         return [{ id: 'empty', name: 'Vazio', color: '#FFFFFF' }, ...parsed];
       }
@@ -54,7 +56,7 @@ function App() {
     return defaultTargets;
   });
   
-  const [activeTargetId, setActiveTargetId] = useState(() => localStorage.getItem('activeTargetId') || targets.find(t => t.id !== 'empty')?.id);
+  const [activeTargetId, setActiveTargetId] = useState(() => localStorage.getItem('activeTargetId') || targets.find(t => t.id !== 'empty')?.id || 'empty');
 
   const [isDragging, setIsDragging] = useState(false);
   const [draggedOverWells, setDraggedOverWells] = useState(new Set());
@@ -63,7 +65,11 @@ function App() {
   const [marginType, setMarginType] = useState(() => localStorage.getItem('marginType') || 'extra');
   const [extraSamples, setExtraSamples] = useState(() => parseInt(localStorage.getItem('extraSamples')) || 2);
   const [extraPercentage, setExtraPercentage] = useState(() => parseInt(localStorage.getItem('extraPercentage')) || 10);
-  
+  const [manualReactionCount, setManualReactionCount] = useState(() => {
+      const savedCount = localStorage.getItem('manualReactionCount');
+      return savedCount !== null ? parseInt(savedCount) : Object.values(JSON.parse(localStorage.getItem('plateData')) || {}).filter(well => well && well.targetId !== 'empty').length;
+  });
+
   const [checklistItems, setChecklistItems] = useState(() => JSON.parse(localStorage.getItem('checklistItems')) || INITIAL_CHECKLIST);
   const [completedItems, setCompletedItems] = useState(() => JSON.parse(localStorage.getItem('completedItems')) || []);
   
@@ -78,6 +84,7 @@ function App() {
   
   const fileInputRef = useRef(null);
 
+  // --- EFEITOS (SALVAMENTO AUTOMÁTICO) ---
   useEffect(() => { localStorage.setItem('projectName', projectName); }, [projectName]);
   useEffect(() => { localStorage.setItem('plateFormat', plateFormat); }, [plateFormat]);
   useEffect(() => { localStorage.setItem('plateData', JSON.stringify(plateData)); }, [plateData]);
@@ -87,9 +94,18 @@ function App() {
   useEffect(() => { localStorage.setItem('marginType', marginType); }, [marginType]);
   useEffect(() => { localStorage.setItem('extraSamples', String(extraSamples)); }, [extraSamples]);
   useEffect(() => { localStorage.setItem('extraPercentage', String(extraPercentage)); }, [extraPercentage]);
+  useEffect(() => { localStorage.setItem('manualReactionCount', String(manualReactionCount)); }, [manualReactionCount]);
   useEffect(() => { localStorage.setItem('checklistItems', JSON.stringify(checklistItems)); }, [checklistItems]);
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
 
+  useEffect(() => {
+      const currentPlateReactions = Object.values(plateData).filter(well => well && well.targetId !== 'empty').length;
+      if (manualReactionCount === 0 && currentPlateReactions > 0) {
+          setManualReactionCount(currentPlateReactions);
+      }
+  }, [plateData, manualReactionCount]);
+
+  // --- FUNÇÕES DE MANIPULAÇÃO (SEM useCallback) ---
   const handleAddTarget = () => {
     setNewTarget({ name: '', color: `#${Math.floor(Math.random()*16777215).toString(16).padEnd(6, '0')}` });
     setIsAddTargetDialogOpen(true);
@@ -123,84 +139,94 @@ function App() {
     }
   };
   
-  const updateWells = useCallback((wellsToUpdate) => {
+  const updateWells = (wellsToUpdate) => {
     setPlateData(prev => {
       const newData = { ...prev };
       wellsToUpdate.forEach(wellId => {
         if (activeTargetId === 'empty') {
           delete newData[wellId];
         } else {
-          newData[wellId] = { ...newData[wellId], targetId: activeTargetId };
+          const existingSampleName = newData[wellId]?.sampleName;
+          newData[wellId] = { 
+              ...newData[wellId], 
+              targetId: activeTargetId, 
+              sampleName: existingSampleName || '' 
+          };
         }
       });
       return newData;
     });
-  }, [activeTargetId]);
+  };
 
-  const handleWellMouseDown = useCallback((wellId) => {
+  const handleWellMouseDown = (wellId) => {
     setIsDragging(true);
     const newDraggedOverWells = new Set([wellId]);
     setDraggedOverWells(newDraggedOverWells);
-    updateWells(newDraggedOverWells);
-  }, [updateWells]);
+    updateWells(newDraggedOverWells); // Apply immediately on single click/drag start
+  };
   
-  const handleWellMouseEnter = useCallback((wellId) => {
+  const handleWellMouseEnter = (wellId) => {
     if (isDragging) {
-      setDraggedOverWells(prev => new Set(prev).add(wellId));
+      const newDraggedOverWells = new Set(draggedOverWells).add(wellId);
+      setDraggedOverWells(newDraggedOverWells);
+      updateWells(newDraggedOverWells); // Apply immediately while dragging
     }
-  }, [isDragging]);
+  };
   
-  const handleWellMouseUp = useCallback(() => {
+  const handleWellMouseUp = () => {
     if(isDragging) {
-      updateWells(draggedOverWells);
+      // updateWells is already called during drag, just reset state
       setIsDragging(false);
       setDraggedOverWells(new Set());
     }
-  }, [isDragging, draggedOverWells, updateWells]);
+  };
 
-  const handleWellDoubleClick = useCallback((wellId) => {
-    setEditingWellId(wellId);
-    setEditingWellData({ sampleName: plateData[wellId]?.sampleName || '' });
-  }, [plateData]);
+  const handleWellDoubleClick = (wellId) => {
+    if (plateData[wellId] && plateData[wellId].targetId !== 'empty') {
+        setEditingWellId(wellId);
+        setEditingWellData({ sampleName: plateData[wellId]?.sampleName || '' });
+    }
+  };
   
-  const handleSaveWellDetails = useCallback(() => {
+  const handleSaveWellDetails = () => {
     if (!editingWellId) return;
     setPlateData(prev => ({
       ...prev,
       [editingWellId]: { ...prev[editingWellId], ...editingWellData }
     }));
     setEditingWellId(null);
-  }, [editingWellId, editingWellData]);
+  };
 
-  const handleClearPlate = useCallback(() => {
+  const handleClearPlate = () => {
     if (window.confirm('Tem certeza que deseja limpar toda a placa?')) {
       setPlateData({});
+      setManualReactionCount(0);
     }
-  }, []);
+  };
 
-  const handleSaveChecklist = useCallback(() => {
+  const handleSaveChecklist = () => {
     const newItems = checklistText.split('\n').filter(item => item.trim() !== '');
     setChecklistItems(newItems);
     setChecklistEditorOpen(false);
-  }, [checklistText]);
+  };
 
-  const handleItemToggle = useCallback((index) => {
+  const handleItemToggle = (index) => {
     setCompletedItems(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
-  }, []);
+  };
 
-  const calculateMasterMix = useCallback(() => {
-    const totalReactions = Object.values(plateData).filter(well => well && well.targetId !== 'empty').length;
-    if (totalReactions === 0) return [];
-    const factor = marginType === 'extra' ? totalReactions + parseInt(extraSamples || 0) : totalReactions * (1 + (parseInt(extraPercentage || 0) / 100));
+  const calculateMasterMix = () => {
+    const baseReactions = parseInt(manualReactionCount || 0);
+    if (baseReactions === 0) return [];
+    const factor = marginType === 'extra' ? baseReactions + parseInt(extraSamples || 0) : baseReactions * (1 + (parseInt(extraPercentage || 0) / 100));
     return reagents.map(reagent => ({ ...reagent, totalVolume: (reagent.volumePerReaction * factor).toFixed(2) }));
-  }, [plateData, marginType, extraSamples, extraPercentage, reagents]);
+  };
   
-  const getTotalMasterMixVolume = useCallback(() => calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2), [calculateMasterMix]);
+  const getTotalMasterMixVolume = () => calculateMasterMix().reduce((sum, reagent) => sum + parseFloat(reagent.totalVolume), 0).toFixed(2);
   
   const handleExport = () => {
-    const stateToExport = {
-      projectName, plateFormat, plateData, targets, checklistItems,
-      marginType, extraSamples, extraPercentage, activeTargetId
+     const stateToExport = {
+      projectName, plateFormat, plateData, targets, checklistItems, reagents,
+      marginType, extraSamples, extraPercentage, activeTargetId, manualReactionCount, completedItems
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToExport, null, 2));
     const downloadAnchorNode = document.createElement('a');
@@ -225,14 +251,25 @@ function App() {
           setProjectName(importedState.projectName || 'Projeto Importado');
           setPlateFormat(importedState.plateFormat || '96');
           setPlateData(importedState.plateData || {});
-          setTargets(importedState.targets || defaultTargets);
+          
+          // Garante que a ferramenta 'empty' existe nos alvos importados
+          let importedTargets = importedState.targets || defaultTargets;
+          if (!importedTargets.find(t => t.id === 'empty')) {
+              importedTargets = [{ id: 'empty', name: 'Vazio', color: '#FFFFFF' }, ...importedTargets];
+          }
+          setTargets(importedTargets);
+
           setChecklistItems(importedState.checklistItems || INITIAL_CHECKLIST);
+          setReagents(importedState.reagents || INITIAL_REAGENTS);
           setMarginType(importedState.marginType || 'extra');
           setExtraSamples(importedState.extraSamples || 2);
           setExtraPercentage(importedState.extraPercentage || 10);
-          setActiveTargetId(importedState.activeTargetId || defaultTargets.find(t => t.id !== 'empty')?.id);
+          setManualReactionCount(importedState.manualReactionCount !== undefined ? importedState.manualReactionCount : Object.values(importedState.plateData || {}).filter(well => well && well.targetId !== 'empty').length);
+          setActiveTargetId(importedState.activeTargetId || importedTargets.find(t => t.id !== 'empty')?.id || 'empty');
+          setCompletedItems(importedState.completedItems || []);
           alert('Projeto importado com sucesso!');
         } catch (error) {
+          console.error("Erro ao importar:", error);
           alert('Erro ao ler o ficheiro. Verifique se o formato é JSON válido.');
         }
       };
@@ -241,6 +278,7 @@ function App() {
     }
   };
 
+  // --- JSX ---
   return (
     <>
       <div className="print-only">
@@ -251,9 +289,10 @@ function App() {
           projectName={projectName}
           calculatedMix={calculateMasterMix()}
           totalMixVolume={getTotalMasterMixVolume()}
-           marginType={marginType}
-           extraSamples={extraSamples}
-           extraPercentage={extraPercentage}
+          marginType={marginType}
+          extraSamples={extraSamples}
+          extraPercentage={extraPercentage}
+          manualReactionCount={manualReactionCount}
         />
       </div>
       <div className="min-h-screen bg-gray-50 no-print">
@@ -273,7 +312,8 @@ function App() {
                 <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json"/>
                 <Button variant="outline" size="sm" onClick={handleImportClick}><Upload className="h-4 w-4 mr-2" /> Importar</Button>
                 <Button variant="outline" size="sm" onClick={handleExport}><Download className="h-4 w-4 mr-2" /> Exportar</Button>
-                <Button variant="default" size="sm" onClick={() => window.print()}><i className="lucide lucide-printer h-4 w-4 mr-2" /> Imprimir</Button>
+                {/* Botão Imprimir corrigido */}
+                <Button variant="default" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" /> Imprimir</Button>
               </div>
             </div>
           </div>
@@ -307,7 +347,7 @@ function App() {
                     draggedOverWells={draggedOverWells}
                     onWellMouseDown={handleWellMouseDown}
                     onWellMouseEnter={handleWellMouseEnter}
-                    onWellMouseUp={handleWellMouseUp}
+                    onWellMouseUp={handleWellMouseUp} // Passado aqui, mas a lógica agora é no mouse up do container
                     onWellDoubleClick={handleWellDoubleClick}
                   />
                 </div>
@@ -318,7 +358,8 @@ function App() {
               <MasterMixCalculator
                 reagents={reagents}
                 setReagents={setReagents}
-                totalReactions={Object.values(plateData).filter(well => well && well.targetId !== 'empty').length}
+                manualReactionCount={manualReactionCount}
+                setManualReactionCount={setManualReactionCount}
                 marginType={marginType}
                 setMarginType={setMarginType}
                 extraSamples={extraSamples}
@@ -341,6 +382,33 @@ function App() {
             </TabsContent>
           </Tabs>
         </main>
+
+        <Dialog open={!!editingWellId} onOpenChange={() => setEditingWellId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Poço {editingWellId}</DialogTitle>
+              <DialogDescription>Adicione um nome de amostra a este poço.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="well-sample-name">Nome da Amostra</Label>
+                <Input id="well-sample-name" value={editingWellData.sampleName} onChange={(e) => setEditingWellData({ ...editingWellData, sampleName: e.target.value })} />
+              </div>
+            </div>
+            <DialogFooter><Button onClick={handleSaveWellDetails}>Salvar</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        <Dialog open={isChecklistEditorOpen} onOpenChange={setChecklistEditorOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Editar Checklist</DialogTitle>
+              <DialogDescription>Edite os passos do protocolo. Um passo por linha.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4"><Textarea value={checklistText} onChange={(e) => setChecklistText(e.target.value)} rows={10} /></div>
+            <DialogFooter><Button onClick={handleSaveChecklist}>Salvar Checklist</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isAddTargetDialogOpen} onOpenChange={setIsAddTargetDialogOpen}>
           <DialogContent>
@@ -377,33 +445,6 @@ function App() {
             <DialogFooter>
               <Button onClick={handleSaveNewTarget}>Salvar Alvo</Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!editingWellId} onOpenChange={() => setEditingWellId(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Editar Poço {editingWellId}</DialogTitle>
-              <DialogDescription>Adicione um nome de amostra a este poço.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="well-sample-name">Nome da Amostra</Label>
-                <Input id="well-sample-name" value={editingWellData.sampleName} onChange={(e) => setEditingWellData({ ...editingWellData, sampleName: e.target.value })} />
-              </div>
-            </div>
-            <DialogFooter><Button onClick={handleSaveWellDetails}>Salvar</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-        
-        <Dialog open={isChecklistEditorOpen} onOpenChange={setChecklistEditorOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Editar Checklist</DialogTitle>
-              <DialogDescription>Edite os passos do protocolo. Um passo por linha.</DialogDescription>
-            </DialogHeader>
-            <div className="py-4"><Textarea value={checklistText} onChange={(e) => setChecklistText(e.target.value)} rows={10} /></div>
-            <DialogFooter><Button onClick={handleSaveChecklist}>Salvar Checklist</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

@@ -11,7 +11,9 @@ import { Beaker, Calculator, Plus, Trash2 } from 'lucide-react'
 export function MasterMixCalculator({
   reagents,
   setReagents,
-  totalReactions,
+  // Recebemos o estado manual e o setter
+  manualReactionCount,
+  setManualReactionCount,
   marginType,
   setMarginType,
   extraSamples,
@@ -26,10 +28,24 @@ export function MasterMixCalculator({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2"><Beaker className="h-5 w-5" />Reagentes do Master Mix</CardTitle>
-          <CardDescription>Total de reações na placa: {totalReactions}</CardDescription>
+          {/* Adicionamos o campo de input para a contagem manual */}
+          <div className="pt-4 space-y-2">
+            <Label htmlFor="manual-reactions" className="text-base font-semibold">Número de Reações Base para Cálculo</Label>
+            <Input 
+                id="manual-reactions"
+                type="number" 
+                value={manualReactionCount} 
+                onChange={(e) => setManualReactionCount(parseInt(e.target.value) || 0)} 
+                className="w-24"
+                min="0"
+            />
+            <p className="text-sm text-muted-foreground">Insira o número de reações para as quais deseja calcular o Master Mix.</p>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Separator />
           <div className="space-y-3">
+             <Label className="text-base font-semibold">Lista de Reagentes</Label>
             {reagents.map((reagent, index) => (
               <div key={index} className="flex items-center space-x-2">
                 <Input value={reagent.name} onChange={(e) => { const newReagents = [...reagents]; newReagents[index].name = e.target.value; setReagents(newReagents); }} className="flex-1" placeholder="Nome do reagente" />
@@ -43,7 +59,7 @@ export function MasterMixCalculator({
           <div className="space-y-3">
             <Label className="text-base font-semibold">Margem de Segurança</Label>
             <div className="space-y-2">
-              <div className="flex items-center space-x-2"><input type="radio" id="extra-samples" name="margin" checked={marginType === 'extra'} onChange={() => setMarginType('extra')} /><Label htmlFor="extra-samples">Amostras Extras</Label>{marginType === 'extra' && <Input type="number" value={extraSamples} onChange={(e) => setExtraSamples(parseInt(e.target.value) || 0)} className="w-20" min="0" />}</div>
+              <div className="flex items-center space-x-2"><input type="radio" id="extra-samples" name="margin" checked={marginType === 'extra'} onChange={() => setMarginType('extra')} /><Label htmlFor="extra-samples">Reações Extras</Label>{marginType === 'extra' && <Input type="number" value={extraSamples} onChange={(e) => setExtraSamples(parseInt(e.target.value) || 0)} className="w-20" min="0" />}</div>
               <div className="flex items-center space-x-2"><input type="radio" id="extra-percentage" name="margin" checked={marginType === 'percentage'} onChange={() => setMarginType('percentage')} /><Label htmlFor="extra-percentage">Porcentagem Extra (%)</Label>{marginType === 'percentage' && <Input type="number" value={extraPercentage} onChange={(e) => setExtraPercentage(parseInt(e.target.value) || 0)} className="w-20" min="0" max="100" />}</div>
             </div>
           </div>
