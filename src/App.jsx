@@ -11,12 +11,28 @@ import { Separator } from '@/components/ui/separator.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Printer } from 'lucide-react'; // Adicionado Printer
+import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Printer, ExternalLink, X, Users } from 'lucide-react'; // Adicionado Printer
 import { customAlphabet } from 'nanoid';
 import { HexColorPicker } from 'react-colorful';
 import './App.css';
+import { readImportFromHash, LAB_MASTERMIX_URL } from './lib/bridge.js';
 
 const nanoid = customAlphabet('1234567890abcdef', 10);
+
+// Amostras enviadas pelo Lab MasterMix (lidas uma única vez, ao abrir o app)
+const INCOMING = readImportFromHash();
+
+// Poço que conta como reação: tem um alvo (gene/controle) definido
+const hasTarget = (well) => well && well.targetId && well.targetId !== 'empty';
+
+const loadJSON = (key, fallback) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 // ... (Constantes INITIAL_CHECKLIST, INITIAL_REAGENTS, defaultTargets permanecem as mesmas) ...
 const INITIAL_CHECKLIST = [
@@ -39,7 +55,7 @@ const defaultTargets = [
 
 function App() {
   // --- ESTADO DA APLICAÇÃO ---
-  const [projectName, setProjectName] = useState(() => localStorage.getItem('projectName') || 'Novo Projeto');
+  const [projectName, setProjectName] = useState(() => INCOMING?.project || localStorage.getItem('projectName') || 'Novo Projeto');
   const [plateFormat, setPlateFormat] = useState(() => localStorage.getItem('plateFormat') || '96');
   const [plateData, setPlateData] = useState(() => JSON.parse(localStorage.getItem('plateData')) || {});
   const [currentTab, setCurrentTab] = useState('design');
@@ -67,7 +83,7 @@ function App() {
   const [extraPercentage, setExtraPercentage] = useState(() => parseInt(localStorage.getItem('extraPercentage')) || 10);
   const [manualReactionCount, setManualReactionCount] = useState(() => {
       const savedCount = localStorage.getItem('manualReactionCount');
-      return savedCount !== null ? parseInt(savedCount) : Object.values(JSON.parse(localStorage.getItem('plateData')) || {}).filter(well => well && well.targetId !== 'empty').length;
+      return savedCount !== null ? parseInt(savedCount) : Object.values(JSON.parse(localStorage.getItem('plateData')) || {}).filter(hasTarget).length;
   });
 
   const [checklistItems, setChecklistItems] = useState(() => JSON.parse(localStorage.getItem('checklistItems')) || INITIAL_CHECKLIST);
@@ -84,6 +100,12 @@ function App() {
   
   const fileInputRef = useRef(null);
 
+  // Amostras (lista vinda do Lab MasterMix) e "pincel" de amostra
+  const [sampleList, setSampleList] = useState(() => INCOMING?.samples || loadJSON('sampleList', []));
+  const [activeSampleName, setActiveSampleName] = useState(null); // null = pincel de alvo; '' = apagar nome
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [importedCount, setImportedCount] = useState(INCOMING ? INCOMING.samples.length : 0);
+
   // --- EFEITOS (SALVAMENTO AUTOMÁTICO) ---
   useEffect(() => { localStorage.setItem('projectName', projectName); }, [projectName]);
   useEffect(() => { localStorage.setItem('plateFormat', plateFormat); }, [plateFormat]);
@@ -97,9 +119,10 @@ function App() {
   useEffect(() => { localStorage.setItem('manualReactionCount', String(manualReactionCount)); }, [manualReactionCount]);
   useEffect(() => { localStorage.setItem('checklistItems', JSON.stringify(checklistItems)); }, [checklistItems]);
   useEffect(() => { localStorage.setItem('completedItems', JSON.stringify(completedItems)); }, [completedItems]);
+  useEffect(() => { localStorage.setItem('sampleList', JSON.stringify(sampleList)); }, [sampleList]);
 
   useEffect(() => {
-      const currentPlateReactions = Object.values(plateData).filter(well => well && well.targetId !== 'empty').length;
+      const currentPlateReactions = Object.values(plateData).filter(hasTarget).length;
       if (manualReactionCount === 0 && currentPlateReactions > 0) {
           setManualReactionCount(currentPlateReactions);
       }
@@ -139,11 +162,28 @@ function App() {
     }
   };
   
+  const handleSelectTarget = (targetId) => {
+    setActiveTargetId(targetId);
+    setActiveSampleName(null);
+  };
+
+  const handleClearSamples = () => {
+    if (window.confirm('Remover a lista de amostras? Os nomes já colocados nos poços continuam na placa.')) {
+      setSampleList([]);
+      setActiveSampleName(null);
+    }
+  };
+
   const updateWells = (wellsToUpdate) => {
     setPlateData(prev => {
       const newData = { ...prev };
       wellsToUpdate.forEach(wellId => {
-        if (activeTargetId === 'empty') {
+        if (activeSampleName !== null) {
+          // pincel de amostra: muda só o nome da amostra, mantendo o alvo do poço
+          const updated = { ...newData[wellId], sampleName: activeSampleName };
+          if (!updated.targetId && !updated.sampleName) delete newData[wellId];
+          else newData[wellId] = updated;
+        } else if (activeTargetId === 'empty') {
           delete newData[wellId];
         } else {
           const existingSampleName = newData[wellId]?.sampleName;
@@ -178,11 +218,16 @@ function App() {
       // updateWells is already called during drag, just reset state
       setIsDragging(false);
       setDraggedOverWells(new Set());
+      // depois de pintar uma amostra (ex.: triplicata), já seleciona a próxima da lista
+      if (autoAdvance && activeSampleName) {
+        const index = sampleList.indexOf(activeSampleName);
+        if (index >= 0 && index < sampleList.length - 1) setActiveSampleName(sampleList[index + 1]);
+      }
     }
   };
 
   const handleWellDoubleClick = (wellId) => {
-    if (plateData[wellId] && plateData[wellId].targetId !== 'empty') {
+    if (plateData[wellId]) {
         setEditingWellId(wellId);
         setEditingWellData({ sampleName: plateData[wellId]?.sampleName || '' });
     }
@@ -264,7 +309,7 @@ function App() {
           setMarginType(importedState.marginType || 'extra');
           setExtraSamples(importedState.extraSamples || 2);
           setExtraPercentage(importedState.extraPercentage || 10);
-          setManualReactionCount(importedState.manualReactionCount !== undefined ? importedState.manualReactionCount : Object.values(importedState.plateData || {}).filter(well => well && well.targetId !== 'empty').length);
+          setManualReactionCount(importedState.manualReactionCount !== undefined ? importedState.manualReactionCount : Object.values(importedState.plateData || {}).filter(hasTarget).length);
           setActiveTargetId(importedState.activeTargetId || importedTargets.find(t => t.id !== 'empty')?.id || 'empty');
           setCompletedItems(importedState.completedItems || []);
           alert('Projeto importado com sucesso!');
@@ -310,6 +355,9 @@ function App() {
               </div>
               <div className="flex items-center space-x-2">
                 <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".json"/>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href={LAB_MASTERMIX_URL} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-2" /> Lab MasterMix</a>
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleImportClick}><Upload className="h-4 w-4 mr-2" /> Importar</Button>
                 <Button variant="outline" size="sm" onClick={handleExport}><Download className="h-4 w-4 mr-2" /> Exportar</Button>
                 {/* Botão Imprimir corrigido */}
@@ -320,6 +368,16 @@ function App() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {importedCount > 0 && (
+            <div className="mb-6 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+              <Users className="h-5 w-5 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <strong>{importedCount} amostra(s) recebida(s) do Lab MasterMix.</strong>{' '}
+                Em Ferramentas → Amostras, escolha uma amostra e clique ou arraste nos poços para colocar o nome. Ao soltar, a próxima amostra da lista é selecionada automaticamente.
+              </div>
+              <button type="button" onClick={() => setImportedCount(0)} aria-label="Fechar aviso" className="text-green-700 hover:text-green-900"><X className="h-4 w-4" /></button>
+            </div>
+          )}
           <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="design" className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" /> Design da Placa</TabsTrigger>
@@ -331,9 +389,18 @@ function App() {
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6" onMouseUp={handleWellMouseUp}>
                 <div className="lg:col-span-1">
                   <ToolsPanel
+                    plateFormat={plateFormat}
+                    setPlateFormat={setPlateFormat}
                     targets={targets}
-                    activeTargetId={activeTargetId}
-                    onSelectTarget={setActiveTargetId}
+                    activeTargetId={activeSampleName === null ? activeTargetId : null}
+                    onSelectTarget={handleSelectTarget}
+                    sampleList={sampleList}
+                    activeSampleName={activeSampleName}
+                    onSelectSample={setActiveSampleName}
+                    onClearSamples={handleClearSamples}
+                    autoAdvance={autoAdvance}
+                    setAutoAdvance={setAutoAdvance}
+                    plateData={plateData}
                     onAddTarget={handleAddTarget}
                     onRemoveTarget={handleRemoveTarget}
                     onClearPlate={handleClearPlate}

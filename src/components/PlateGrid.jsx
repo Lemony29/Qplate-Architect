@@ -33,7 +33,10 @@ const Well = ({ wellId, wellData, target, isBeingDraggedOver, onMouseDown, onMou
     >
       {/* Exibe o wellId se o poço estiver vazio, ou as informações completas se estiver preenchido */}
       {targetName === 'Vazio' || !targetName ? (
-        <span className="font-medium text-gray-400">{wellId}</span>
+        <>
+          <span className={`font-medium text-gray-400 ${sampleName ? 'text-[10px]' : ''}`}>{wellId}</span>
+          {sampleName && <span className="text-[10px] text-gray-600 truncate w-full text-center">{sampleName}</span>}
+        </>
       ) : (
         <>
           <span className={`absolute top-0.5 left-1.5 text-[8px] ${isLight ? 'opacity-50' : 'opacity-70'}`}>{wellId}</span>
