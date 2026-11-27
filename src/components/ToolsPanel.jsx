@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Settings, Plus, Trash2 } from 'lucide-react'
+import { SamplesPanel } from './SamplesPanel'
 
 const PLATE_FORMATS = {
   '96': { name: '96 poços (8x12)' },
@@ -19,9 +20,18 @@ export function ToolsPanel({
   onSelectTarget,
   onAddTarget,
   onRemoveTarget,
-  onClearPlate
+  onClearPlate,
+  sampleList = [],
+  activeSampleName = null,
+  onSelectSample,
+  onAddSamples,
+  onRenameSample,
+  onRemoveSample,
+  onClearSamples,
+  autoAdvance,
+  setAutoAdvance,
+  plateData = {}
 }) {
-
   const geneTargets = targets.filter(t => t.id !== 'empty');
   const emptyTarget = targets.find(t => t.id === 'empty');
 
@@ -99,6 +109,20 @@ export function ToolsPanel({
           </Button>
         </div>
         
+        <Separator />
+        <SamplesPanel
+          sampleList={sampleList}
+          activeSampleName={activeSampleName}
+          onSelectSample={onSelectSample}
+          onAddSamples={onAddSamples}
+          onRenameSample={onRenameSample}
+          onRemoveSample={onRemoveSample}
+          onClearSamples={onClearSamples}
+          autoAdvance={autoAdvance}
+          setAutoAdvance={setAutoAdvance}
+          plateData={plateData}
+        />
+
         <Separator />
         
         <div className="space-y-2">
