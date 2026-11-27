@@ -7,13 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, ClipboardPaste, Download, Copy, AlertTriangle, BarChart3, Settings2, FileSpreadsheet, ChevronDown, ChevronUp } from 'lucide-react';
-import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, mergeWithPlate, parseRunText, toLongCsv, toWideCsv } from '@/lib/qpcr';
+import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, mergeWithPlate, parseRunText, toLongCsv, toWideCsv, workbookToSheets } from '@/lib/qpcr';
 
 const STORAGE_KEY = 'qpcrAnalysis';
 const PLATE_COLUMNS = { '96': 12, '384': 24, '48': 8 };
 const ERRORS = {
   empty: 'O arquivo está vazio.',
-  noHeader: 'Não encontrei as colunas de poço e Cq/Ct. Confira se é o arquivo de resultados exportado em CSV ou TXT.',
+  noHeader: 'Não encontrei as colunas de poço e Cq/Ct. Confira se é o arquivo (ou a aba da planilha) com os resultados da corrida.',
   noRows: 'Achei o cabeçalho, mas nenhuma linha com poço válido (ex.: A1). Ajuste as colunas abaixo.',
 };
 const FLAG_STYLE = {
@@ -123,6 +123,8 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
   const [chartGene, setChartGene] = useState('');
   const [logScale, setLogScale] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [workbook, setWorkbook] = useState(null); // { name, sheets: [{ sheet, text, hasResults }], current }
+  const [reading, setReading] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -157,18 +159,42 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
     setSettings((s) => ({ ...s, excluded: [] }));
   };
 
-  const handleFile = (e) => {
+  const selectSheet = (wb, sheetName) => {
+    const sheet = wb.sheets.find((x) => x.sheet === sheetName) || wb.sheets[0];
+    setWorkbook({ ...wb, current: sheet.sheet });
+    loadText(sheet.text, `${wb.name} · aba "${sheet.sheet}"`);
+  };
+
+  const handleFile = async (e) => {
     const file = e.target.files[0];
+    e.target.value = null;
     if (!file) return;
-    if (/\.(xlsx?|eds)$/i.test(file.name)) {
-      alert('Exporte os resultados do termociclador em CSV ou TXT (no software do aparelho: Export → Results → .csv/.txt) e importe esse arquivo.');
-      e.target.value = null;
+    if (/\.eds$/i.test(file.name)) {
+      alert('Arquivo .eds é o experimento do aparelho. No software do termociclador, exporte os resultados (Export → Results) em Excel (.xlsx), CSV ou TXT.');
       return;
     }
+    if (/\.xls$/i.test(file.name)) {
+      alert('Arquivo .xls (Excel antigo). Abra no Excel e use "Salvar como" → "Pasta de Trabalho do Excel (.xlsx)", ou exporte em CSV, e importe de novo.');
+      return;
+    }
+    if (/\.xlsx$/i.test(file.name)) {
+      setReading(true);
+      try {
+        const { default: readExcelFile } = await import('read-excel-file/browser');
+        const sheets = workbookToSheets(await readExcelFile(file));
+        if (!sheets.length) throw new Error('planilha vazia');
+        selectSheet({ name: file.name, sheets }, sheets[0].sheet);
+      } catch (error) {
+        alert(`Não consegui ler a planilha: ${error.message}`);
+      } finally {
+        setReading(false);
+      }
+      return;
+    }
+    setWorkbook(null);
     const reader = new FileReader();
     reader.onload = (ev) => loadText(ev.target.result, file.name);
     reader.readAsText(file);
-    e.target.value = null;
   };
 
   // genes de referência: sugere automaticamente genes comuns na primeira importação
@@ -193,21 +219,30 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" />1. Importar a corrida</CardTitle>
-          <CardDescription>Arquivo de resultados exportado pelo termociclador (CSV ou TXT), ou cole as colunas do Excel (Poço e Cq, opcionalmente Amostra e Gene).</CardDescription>
+          <CardDescription>Planilha do Excel (.xlsx), CSV ou TXT exportado pelo termociclador, ou cole as colunas do Excel (Poço e Cq, opcionalmente Amostra e Gene).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => fileRef.current.click()}><Upload className="h-4 w-4 mr-2" />Importar arquivo</Button>
-            <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,.xls,.xlsx" className="hidden" onChange={handleFile} />
+            <Button onClick={() => fileRef.current.click()} disabled={reading}><Upload className="h-4 w-4 mr-2" />{reading ? 'Lendo planilha…' : 'Importar arquivo'}</Button>
+            <input ref={fileRef} type="file" accept=".xlsx,.csv,.txt,.tsv,.xls" className="hidden" onChange={handleFile} />
             <Button variant="outline" onClick={() => setShowPaste((v) => !v)}><ClipboardPaste className="h-4 w-4 mr-2" />Colar dados</Button>
-            {rawText && <Button variant="ghost" className="text-gray-500" onClick={() => loadText('', '')}>Limpar</Button>}
+            {rawText && <Button variant="ghost" className="text-gray-500" onClick={() => { setWorkbook(null); loadText('', ''); }}>Limpar</Button>}
           </div>
 
           {showPaste && (
             <div className="space-y-2">
               <Textarea rows={6} value={pasteText} onChange={(e) => setPasteText(e.target.value)} className="font-mono text-xs" placeholder={'Poço\tAmostra\tGene\tCq\nA1\tPac_01\tACTB\t18,2\nA2\tPac_01\tACTB\t18,3'} />
-              <Button size="sm" disabled={!pasteText.trim()} onClick={() => { loadText(pasteText, 'dados colados'); setShowPaste(false); setPasteText(''); }}>Usar estes dados</Button>
+              <Button size="sm" disabled={!pasteText.trim()} onClick={() => { setWorkbook(null); loadText(pasteText, 'dados colados'); setShowPaste(false); setPasteText(''); }}>Usar estes dados</Button>
             </div>
+          )}
+
+          {workbook && workbook.sheets.length > 1 && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-gray-600">Aba da planilha:</span>
+              <select className="h-9 rounded-md border px-2 bg-white" value={workbook.current} onChange={(e) => selectSheet(workbook, e.target.value)}>
+                {workbook.sheets.map((sh) => <option key={sh.sheet} value={sh.sheet}>{sh.sheet}{sh.hasResults ? ' (resultados)' : ''}</option>)}
+              </select>
+            </label>
           )}
 
           {parsed?.error && (

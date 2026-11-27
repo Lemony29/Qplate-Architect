@@ -134,6 +134,35 @@ export function parseRunText(text, columns = null, plateColumns = 12) {
   return { rows, headers: cols.headers, columns: cols, delimiter, skipped };
 }
 
+// ---------- planilhas do Excel (.xlsx) ----------
+
+function cellToText(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(value);
+  return String(value).replace(/[\t\r\n]+/g, ' ').trim();
+}
+
+/** Converte as linhas de uma aba em texto separado por tabulação (mesmo formato do CSV/TXT). */
+export function sheetToText(data) {
+  return (data || []).map((row) => (row || []).map(cellToText).join('\t')).join('\n');
+}
+
+/**
+ * Recebe as abas lidas do .xlsx ([{ sheet, data }]) e escolhe a que tem os resultados:
+ * a primeira com colunas de poço e Cq, dando preferência a nomes como "Results" / "Quantification Cq Results".
+ * Retorna [{ sheet, text, hasResults }] com a escolhida primeiro.
+ */
+export function workbookToSheets(sheets) {
+  const converted = (sheets || []).map(({ sheet, data }) => {
+    const text = sheetToText(data);
+    const lines = text.split('\n').filter((l) => l.trim() !== '');
+    return { sheet, text, hasResults: Boolean(detectColumns(lines, '\t')) };
+  });
+  const score = (s) => (s.hasResults ? 2 : 0) + (/result|resultado|quantification cq|cq result/i.test(s.sheet) ? 1 : 0);
+  return converted.sort((a, b) => score(b) - score(a));
+}
+
 // ---------- cruzar com o mapa da placa ----------
 
 /**
