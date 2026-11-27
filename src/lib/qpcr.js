@@ -166,11 +166,20 @@ export function workbookToSheets(sheets) {
 // ---------- cruzar com o mapa da placa ----------
 
 /**
- * nameSource: 'auto' (mapa do qPlate quando o poço está mapeado, senão o arquivo), 'plate' ou 'file'.
+ * De onde vêm os nomes de amostra e gene:
+ *  - 'auto' (padrão): do arquivo; o mapa do qPlate só preenche o que o arquivo não tiver
+ *    (ex.: dados colados só com Poço e Cq). Se o arquivo tem a coluna, o mapa é ignorado.
+ *  - 'file': só do arquivo.
+ *  - 'plate': só do mapa do qPlate.
+ * fileHas: { sample, target } — se o arquivo tem as colunas de amostra e de gene.
  * Retorna [{ well, sample, gene, cq }] só com poços que têm amostra e gene.
  */
-export function mergeWithPlate(rows, plateData = {}, targets = [], nameSource = 'auto') {
+export function mergeWithPlate(rows, plateData = {}, targets = [], nameSource = 'auto', fileHas = null) {
   const targetName = (id) => targets.find((t) => t.id === id)?.name || '';
+  const has = fileHas || {
+    sample: rows.some((r) => r.sample),
+    target: rows.some((r) => r.target),
+  };
   return rows
     .map((r) => {
       const well = plateData[r.well] || {};
@@ -179,10 +188,22 @@ export function mergeWithPlate(rows, plateData = {}, targets = [], nameSource = 
       let sample = r.sample;
       let gene = r.target;
       if (nameSource === 'plate') { sample = plateSample; gene = plateGene; }
-      else if (nameSource === 'auto') { sample = plateSample || r.sample; gene = plateGene || r.target; }
-      return { well: r.well, sample: sample.trim(), gene: gene.trim(), cq: r.cq };
+      else if (nameSource === 'auto') {
+        sample = has.sample ? r.sample : plateSample;
+        gene = has.target ? r.target : plateGene;
+      }
+      return { well: r.well, sample: (sample || '').trim(), gene: (gene || '').trim(), cq: r.cq };
     })
     .filter((w) => w.sample && w.gene);
+}
+
+/** Descreve de onde vieram os nomes, para mostrar na tela. */
+export function namesOrigin(nameSource, fileHas) {
+  if (nameSource === 'plate') return 'plate';
+  if (nameSource === 'file') return 'file';
+  if (fileHas.sample && fileHas.target) return 'file';
+  if (!fileHas.sample && !fileHas.target) return 'plate';
+  return 'mixed';
 }
 
 // ---------- análise ----------
