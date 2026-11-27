@@ -23,9 +23,10 @@ const FLAG_STYLE = {
   spread: 'bg-red-100 text-red-800',
   highCq: 'bg-amber-100 text-amber-800',
   noReference: 'bg-gray-100 text-gray-700',
+  referenceOutlier: 'bg-red-100 text-red-800',
   excluded: 'bg-blue-50 text-blue-700',
 };
-const WARNING_FLAGS = ['undetermined', 'someUndetermined', 'fewReplicates', 'spread', 'highCq', 'noReference'];
+const WARNING_FLAGS = ['undetermined', 'someUndetermined', 'fewReplicates', 'spread', 'highCq', 'noReference', 'referenceOutlier'];
 
 const num = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toFixed(d).replace('.', ','));
 const sci = (v) => {
@@ -333,6 +334,13 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                 <div className="space-y-2">
                   <Label htmlFor="high-cq">Alertar Cq acima de</Label>
                   <Input id="high-cq" type="number" step="1" min="20" value={settings.highCq} onChange={(e) => update({ highCq: Number(e.target.value) || DEFAULT_SETTINGS.highCq })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ref-dev">Referência fora da faixa: diferença da mediana (Cq)</Label>
+                  <Input id="ref-dev" type="number" step="0.5" min="1" value={settings.refMaxDeviation ?? DEFAULT_SETTINGS.refMaxDeviation} onChange={(e) => update({ refMaxDeviation: Number(e.target.value) || DEFAULT_SETTINGS.refMaxDeviation })} />
+                  <p className="text-xs text-gray-500">Avisa quando o Cq do gene de referência de uma amostra fica muito longe das outras (pouco cDNA, RNA degradado ou falha na RT).</p>
                 </div>
               </div>
 

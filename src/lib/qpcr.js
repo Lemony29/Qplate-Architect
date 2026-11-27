@@ -195,6 +195,7 @@ export const DEFAULT_SETTINGS = {
   replicates: 3, // 2 = duplicata, 3 = triplicata
   maxSpread: 0.5, // diferença máxima de Cq aceitável entre réplicas
   highCq: 35,
+  refMaxDeviation: 4, // ciclos de diferença da mediana da referência entre as amostras
   referenceGenes: [],
   calibratorSamples: [],
   efficiencies: {}, // { gene: % } — padrão 100%
@@ -293,6 +294,27 @@ export function analyze(allWells, settings = DEFAULT_SETTINGS) {
     return { ...g, n: valid.length, meanCq, sd: sd(valid), spread, flags, suggestedOutlier, isReference: refs.includes(g.gene) };
   });
 
+  // referência fora da faixa: Cq da referência muito longe da mediana das outras amostras
+  // (indica pouco cDNA, RNA degradado ou falha na RT — a normalização dessa amostra fica pouco confiável)
+  const refOutlierSamples = new Set();
+  refs.forEach((gene) => {
+    const rows = results.filter((r) => r.gene === gene && r.meanCq !== null);
+    if (rows.length < 4) return;
+    const sorted = rows.map((r) => r.meanCq).sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    rows.forEach((r) => {
+      r.refMedian = median;
+      if (Math.abs(r.meanCq - median) > s.refMaxDeviation) {
+        r.flags.push('referenceOutlier');
+        refOutlierSamples.add(r.sample);
+      }
+    });
+  });
+  results.forEach((r) => {
+    if (!r.isReference && refOutlierSamples.has(r.sample)) r.flags.push('referenceOutlier');
+  });
+
   // normalização por amostra
   const bySample = new Map();
   results.forEach((r) => {
@@ -363,6 +385,7 @@ export const FLAG_LABELS = {
   spread: 'Réplicas discordantes',
   highCq: 'Cq alto',
   noReference: 'Sem gene de referência',
+  referenceOutlier: 'Referência fora da faixa',
 };
 
 /** CSV formato longo (uma linha por amostra × gene) — bom para R/estatística. */
