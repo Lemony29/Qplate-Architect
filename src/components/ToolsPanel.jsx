@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Settings, Plus, Trash2, Users, Eraser } from 'lucide-react'
+import { Settings, Plus, Trash2 } from 'lucide-react'
+import { SamplesPanel } from './SamplesPanel'
 
 const PLATE_FORMATS = {
   '96': { name: '96 poços (8x12)' },
@@ -23,17 +24,14 @@ export function ToolsPanel({
   sampleList = [],
   activeSampleName = null,
   onSelectSample,
+  onAddSamples,
+  onRenameSample,
+  onRemoveSample,
   onClearSamples,
   autoAdvance,
   setAutoAdvance,
   plateData = {}
 }) {
-  // quantos poços já têm cada amostra
-  const usage = Object.values(plateData).reduce((acc, well) => {
-    if (well?.sampleName) acc[well.sampleName] = (acc[well.sampleName] || 0) + 1;
-    return acc;
-  }, {});
-
   const geneTargets = targets.filter(t => t.id !== 'empty');
   const emptyTarget = targets.find(t => t.id === 'empty');
 
@@ -111,43 +109,19 @@ export function ToolsPanel({
           </Button>
         </div>
         
-        {sampleList.length > 0 && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Users className="h-4 w-4" />Amostras ({sampleList.length})</Label>
-              <p className="text-xs text-gray-500">Escolha uma amostra e clique/arraste nos poços para dar o nome.</p>
-              <Button
-                variant={activeSampleName === '' ? 'secondary' : 'ghost'}
-                className={`w-full justify-start h-8 text-sm ${activeSampleName === '' ? 'ring-2 ring-blue-500' : ''}`}
-                onClick={() => onSelectSample('')}
-              >
-                <Eraser className="h-4 w-4 mr-2" />
-                Apagar nome da amostra
-              </Button>
-              <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
-                {sampleList.map((name, index) => (
-                  <Button
-                    key={`${name}-${index}`}
-                    variant={activeSampleName === name ? 'secondary' : 'ghost'}
-                    className={`w-full justify-between h-8 text-sm ${activeSampleName === name ? 'ring-2 ring-blue-500' : ''}`}
-                    onClick={() => onSelectSample(name)}
-                  >
-                    <span className="truncate"><span className="text-gray-400 mr-2">{index + 1}</span>{name}</span>
-                    {usage[name] ? <span className="text-xs text-green-700 ml-2">{usage[name]} poço(s)</span> : null}
-                  </Button>
-                ))}
-              </div>
-              <label className="flex items-center gap-2 text-xs text-gray-600">
-                <input type="checkbox" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} />
-                Ao soltar, selecionar a próxima amostra
-              </label>
-              <Button variant="ghost" size="sm" className="w-full justify-start text-gray-500" onClick={onClearSamples}>
-                <Trash2 className="h-4 w-4 mr-2" /> Remover lista de amostras
-              </Button>
-            </div>
-          </>
-        )}
+        <Separator />
+        <SamplesPanel
+          sampleList={sampleList}
+          activeSampleName={activeSampleName}
+          onSelectSample={onSelectSample}
+          onAddSamples={onAddSamples}
+          onRenameSample={onRenameSample}
+          onRemoveSample={onRemoveSample}
+          onClearSamples={onClearSamples}
+          autoAdvance={autoAdvance}
+          setAutoAdvance={setAutoAdvance}
+          plateData={plateData}
+        />
 
         <Separator />
         

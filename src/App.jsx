@@ -22,6 +22,14 @@ const nanoid = customAlphabet('1234567890abcdef', 10);
 // Amostras enviadas pelo Lab MasterMix (lidas uma única vez, ao abrir o app)
 const INCOMING = readImportFromHash();
 
+// Remove nomes vazios e repetidos, mantendo a ordem
+const uniqueNames = (names) => {
+  const seen = new Set();
+  return (Array.isArray(names) ? names : [])
+    .map((n) => String(n ?? '').trim())
+    .filter((n) => n && !seen.has(n) && seen.add(n));
+};
+
 // Poço que conta como reação: tem um alvo (gene/controle) definido
 const hasTarget = (well) => well && well.targetId && well.targetId !== 'empty';
 
@@ -101,7 +109,7 @@ function App() {
   const fileInputRef = useRef(null);
 
   // Amostras (lista vinda do Lab MasterMix) e "pincel" de amostra
-  const [sampleList, setSampleList] = useState(() => INCOMING?.samples || loadJSON('sampleList', []));
+  const [sampleList, setSampleList] = useState(() => uniqueNames(INCOMING?.samples || loadJSON('sampleList', [])));
   const [activeSampleName, setActiveSampleName] = useState(null); // null = pincel de alvo; '' = apagar nome
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [importedCount, setImportedCount] = useState(INCOMING ? INCOMING.samples.length : 0);
@@ -165,6 +173,44 @@ function App() {
   const handleSelectTarget = (targetId) => {
     setActiveTargetId(targetId);
     setActiveSampleName(null);
+  };
+
+  // Lista de amostras editável: adicionar (uma ou várias), renomear (também nos poços) e remover
+  const handleAddSamples = (names) => {
+    const existing = new Set(sampleList);
+    const duplicates = [];
+    const toAdd = [];
+    uniqueNames(names).forEach((n) => {
+      const name = n.slice(0, 60);
+      if (existing.has(name)) duplicates.push(name);
+      else { existing.add(name); toAdd.push(name); }
+    });
+    if (toAdd.length) setSampleList(prev => [...prev, ...toAdd]);
+    return { added: toAdd.length, duplicates };
+  };
+
+  const handleRenameSample = (oldName, newNameRaw) => {
+    const newName = String(newNameRaw || '').trim().slice(0, 60);
+    if (!newName || newName === oldName) return true;
+    if (sampleList.includes(newName)) {
+      alert(`Já existe uma amostra chamada "${newName}".`);
+      return false;
+    }
+    setSampleList(prev => prev.map(n => (n === oldName ? newName : n)));
+    setPlateData(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(wellId => {
+        if (next[wellId]?.sampleName === oldName) next[wellId] = { ...next[wellId], sampleName: newName };
+      });
+      return next;
+    });
+    if (activeSampleName === oldName) setActiveSampleName(newName);
+    return true;
+  };
+
+  const handleRemoveSample = (name) => {
+    setSampleList(prev => prev.filter(n => n !== name));
+    if (activeSampleName === name) setActiveSampleName(null);
   };
 
   const handleClearSamples = () => {
@@ -373,7 +419,7 @@ function App() {
               <Users className="h-5 w-5 mt-0.5 shrink-0" />
               <div className="flex-1">
                 <strong>{importedCount} amostra(s) recebida(s) do Lab MasterMix.</strong>{' '}
-                Em Ferramentas → Amostras, escolha uma amostra e clique ou arraste nos poços para colocar o nome. Ao soltar, a próxima amostra da lista é selecionada automaticamente.
+                Em Ferramentas → Amostras você pode renomear, remover ou adicionar amostras. Escolha uma e clique ou arraste nos poços para colocar o nome; ao soltar, a próxima da lista é selecionada.
               </div>
               <button type="button" onClick={() => setImportedCount(0)} aria-label="Fechar aviso" className="text-green-700 hover:text-green-900"><X className="h-4 w-4" /></button>
             </div>
@@ -397,6 +443,9 @@ function App() {
                     sampleList={sampleList}
                     activeSampleName={activeSampleName}
                     onSelectSample={setActiveSampleName}
+                    onAddSamples={handleAddSamples}
+                    onRenameSample={handleRenameSample}
+                    onRemoveSample={handleRemoveSample}
                     onClearSamples={handleClearSamples}
                     autoAdvance={autoAdvance}
                     setAutoAdvance={setAutoAdvance}
