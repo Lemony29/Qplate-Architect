@@ -5,6 +5,7 @@ import { MasterMixCalculator } from './components/MasterMixCalculator';
 import { Checklist } from './components/Checklist';
 import { PrintLayout } from './components/PrintLayout';
 import { Footer } from './components/Footer';
+import { QpcrAnalysis } from './components/QpcrAnalysis';
 import { Button } from '@/components/ui/button.jsx';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { Separator } from '@/components/ui/separator.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Printer, ExternalLink, X, Users } from 'lucide-react'; // Adicionado Printer
+import { Grid3X3, Calculator, CheckSquare, Upload, Download, Edit, RotateCcw, Printer, ExternalLink, X, Users, BarChart3 } from 'lucide-react'; // Adicionado Printer
 import { customAlphabet } from 'nanoid';
 import { HexColorPicker } from 'react-colorful';
 import './App.css';
@@ -426,10 +427,11 @@ function App() {
             </div>
           )}
           <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="design" className="flex items-center gap-2"><Grid3X3 className="h-4 w-4" /> Design da Placa</TabsTrigger>
               <TabsTrigger value="mastermix" className="flex items-center gap-2"><Calculator className="h-4 w-4" /> Master Mix</TabsTrigger>
               <TabsTrigger value="checklist" className="flex items-center gap-2"><CheckSquare className="h-4 w-4" /> Mini-POP</TabsTrigger>
+              <TabsTrigger value="analysis" className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Análise</TabsTrigger>
             </TabsList>
             
             <TabsContent value="design">
@@ -488,6 +490,10 @@ function App() {
               />
             </TabsContent>
             
+            <TabsContent value="analysis">
+              <QpcrAnalysis plateData={plateData} targets={targets} plateFormat={plateFormat} />
+            </TabsContent>
+
             <TabsContent value="checklist">
               <Checklist
                 items={checklistItems}
