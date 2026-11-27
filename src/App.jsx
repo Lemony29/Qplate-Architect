@@ -4,6 +4,7 @@ import { PlateGrid } from './components/PlateGrid';
 import { MasterMixCalculator } from './components/MasterMixCalculator';
 import { Checklist } from './components/Checklist';
 import { PrintLayout } from './components/PrintLayout';
+import { Footer } from './components/Footer';
 import { Button } from '@/components/ui/button.jsx';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -498,6 +499,8 @@ function App() {
             </TabsContent>
           </Tabs>
         </main>
+
+        <Footer />
 
         <Dialog open={!!editingWellId} onOpenChange={() => setEditingWellId(null)}>
           <DialogContent>
