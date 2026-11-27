@@ -199,7 +199,42 @@ export const DEFAULT_SETTINGS = {
   calibratorSamples: [],
   efficiencies: {}, // { gene: % } — padrão 100%
   excluded: [], // poços excluídos manualmente
+  excludedSamples: [], // amostras inteiras excluídas (botão "Excluir amostra")
+  blankOverrides: {}, // { amostra: true/false } — marca/desmarca manualmente como branco
 };
+
+// Nomes reconhecidos automaticamente como branco / controle negativo
+const BLANK_NAME = /^(br|branco|blank|ntc|nct|ntc\s*\d*|h2o|água|agua|neg|negativo|controle negativo|ctrl neg|c-)(\s*[-_]?\s*\d+)?$/i;
+
+export function isBlankName(name) {
+  return BLANK_NAME.test(String(name || '').trim());
+}
+
+export function isBlankSample(name, overrides = {}) {
+  return Object.prototype.hasOwnProperty.call(overrides, name) ? Boolean(overrides[name]) : isBlankName(name);
+}
+
+/**
+ * Brancos: por amostra × gene, "ok" se nenhuma réplica amplificou,
+ * "late" se amplificou só depois do limite de Cq alto (provável dímero de primer),
+ * "contaminated" se amplificou antes disso.
+ */
+export function evaluateBlanks(wells, highCq = DEFAULT_SETTINGS.highCq) {
+  const groups = new Map();
+  for (const w of wells) {
+    const key = `${w.sample}\u0000${w.gene}`;
+    if (!groups.has(key)) groups.set(key, { sample: w.sample, gene: w.gene, replicates: [] });
+    groups.get(key).replicates.push({ well: w.well, cq: w.cq });
+  }
+  return [...groups.values()]
+    .map((g) => {
+      const amplified = g.replicates.filter((r) => r.cq !== null).map((r) => r.cq);
+      const minCq = amplified.length ? Math.min(...amplified) : null;
+      const status = minCq === null ? 'ok' : minCq > highCq ? 'late' : 'contaminated';
+      return { ...g, minCq, status };
+    })
+    .sort((a, b) => naturalCompare(a.sample, b.sample) || a.gene.localeCompare(b.gene));
+}
 
 /** Eficiência em % → base da amplificação (100% → 2). */
 export function amplificationBase(pct) {
@@ -213,9 +248,16 @@ export function amplificationBase(pct) {
  * expressão relativa (NRQ = 2^−ΔCq com 100% de eficiência) e fold change (2^−ΔΔCq).
  * Com eficiências diferentes de 100% usa a forma generalizada (Pfaffl / qBase): E^−Cq normalizado pela média geométrica das referências.
  */
-export function analyze(wells, settings = DEFAULT_SETTINGS) {
+export function analyze(allWells, settings = DEFAULT_SETTINGS) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const excluded = new Set(s.excluded);
+
+  // separa brancos e amostras excluídas antes de qualquer cálculo
+  const allSamples = [...new Set(allWells.map((w) => w.sample))].sort(naturalCompare);
+  const blankSet = new Set(allSamples.filter((name) => isBlankSample(name, s.blankOverrides)));
+  const excludedSampleSet = new Set((s.excludedSamples || []).filter((name) => allSamples.includes(name) && !blankSet.has(name)));
+  const blanks = evaluateBlanks(allWells.filter((w) => blankSet.has(w.sample)), s.highCq);
+  const wells = allWells.filter((w) => !blankSet.has(w.sample) && !excludedSampleSet.has(w.sample));
   const refs = s.referenceGenes.filter(Boolean);
   const base = (gene) => amplificationBase(s.efficiencies?.[gene] ?? 100);
 
@@ -288,7 +330,16 @@ export function analyze(wells, settings = DEFAULT_SETTINGS) {
   });
 
   results.sort((a, b) => a.gene.localeCompare(b.gene) || naturalCompare(a.sample, b.sample));
-  return { results, genes, samples: [...bySample.keys()].sort(naturalCompare), calibratorStats };
+  return {
+    results,
+    genes,
+    samples: [...bySample.keys()].sort(naturalCompare),
+    calibratorStats,
+    blanks,
+    blankSamples: [...blankSet],
+    excludedSamples: [...excludedSampleSet],
+    allSamples,
+  };
 }
 
 function wellOrder(well) {

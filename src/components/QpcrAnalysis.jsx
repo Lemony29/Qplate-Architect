@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, ClipboardPaste, Download, Copy, AlertTriangle, BarChart3, Settings2, FileSpreadsheet, ChevronDown, ChevronUp } from 'lucide-react';
-import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, mergeWithPlate, parseRunText, toLongCsv, toWideCsv, workbookToSheets } from '@/lib/qpcr';
+import { Upload, ClipboardPaste, Download, Copy, AlertTriangle, BarChart3, Settings2, FileSpreadsheet, ChevronDown, ChevronUp, UserX, RotateCcw, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, isBlankSample, mergeWithPlate, parseRunText, toLongCsv, toWideCsv, workbookToSheets } from '@/lib/qpcr';
 
 const STORAGE_KEY = 'qpcrAnalysis';
 const PLATE_COLUMNS = { '96': 12, '384': 24, '48': 8 };
@@ -30,7 +30,8 @@ const WARNING_FLAGS = ['undetermined', 'someUndetermined', 'fewReplicates', 'spr
 const num = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toFixed(d).replace('.', ','));
 const sci = (v) => {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-  return v >= 0.01 && v < 10000 ? v.toFixed(v < 1 ? 4 : 2).replace('.', ',') : v.toExponential(2).replace('.', ',');
+  if (v >= 0.0001 && v < 1) return Number(v.toPrecision(3)).toString().replace('.', ',');
+  return v >= 1 && v < 10000 ? v.toFixed(2).replace('.', ',') : v.toExponential(2).replace('.', ',');
 };
 
 function loadSaved() {
@@ -139,7 +140,7 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
   );
   const wells = useMemo(() => (parsed?.rows ? mergeWithPlate(parsed.rows, plateData, targets, nameSource) : []), [parsed, plateData, targets, nameSource]);
   const analysis = useMemo(() => analyze(wells, settings), [wells, settings]);
-  const { results, genes, samples } = analysis;
+  const { results, genes, samples, blanks, blankSamples, excludedSamples, allSamples } = analysis;
 
   const ignoredWells = parsed?.rows ? parsed.rows.length - wells.length : 0;
   const hasCalibrator = results.some((r) => r.foldChange !== null);
@@ -156,8 +157,22 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
     setRawText(text);
     setFileName(name);
     setColumnsOverride(null);
+    // réplicas excluídas são por poço e zeram a cada arquivo; amostras excluídas continuam valendo
+    // (e podem ser restauradas enquanto estiverem no arquivo)
     setSettings((s) => ({ ...s, excluded: [] }));
   };
+
+  const excludeSample = (name) => {
+    if (!window.confirm(`Excluir a amostra "${name}" de todos os genes?\n\nEla sai dos cálculos, do gráfico e dos CSVs. Dá para restaurar depois em "Amostras excluídas".`)) return;
+    setSettings((s) => ({ ...s, excludedSamples: [...new Set([...(s.excludedSamples || []), name])], calibratorSamples: s.calibratorSamples.filter((c) => c !== name) }));
+  };
+  const restoreSample = (name) => setSettings((s) => ({ ...s, excludedSamples: (s.excludedSamples || []).filter((x) => x !== name) }));
+  const restoreAllSamples = () => setSettings((s) => ({ ...s, excludedSamples: (s.excludedSamples || []).filter((x) => !excludedSamples.includes(x)) }));
+  const toggleBlank = (name) => setSettings((s) => ({
+    ...s,
+    blankOverrides: { ...s.blankOverrides, [name]: !isBlankSample(name, s.blankOverrides) },
+    calibratorSamples: s.calibratorSamples.filter((c) => c !== name),
+  }));
 
   const selectSheet = (wb, sheetName) => {
     const sheet = wb.sheets.find((x) => x.sheet === sheetName) || wb.sheets[0];
@@ -295,7 +310,11 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5" />2. Configurar</CardTitle>
-              <CardDescription>{samples.length} amostra(s) · {genes.length} gene(s)</CardDescription>
+              <CardDescription>
+                {samples.length} amostra(s) · {genes.length} gene(s)
+                {blankSamples.length > 0 && ` · ${blankSamples.length} branco(s)`}
+                {excludedSamples.length > 0 && ` · ${excludedSamples.length} excluída(s)`}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -340,6 +359,17 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                   </div>
                   <p className="text-xs text-gray-500">Amostra(s) de controle para o ΔΔCq. Sem calibrador, o app calcula só o 2^−ΔCq, que serve para a estatística da coorte.</p>
                 </div>
+                <div className="space-y-2 md:col-span-3 md:order-last">
+                  <Label>Brancos / controles negativos</Label>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 max-h-28 overflow-y-auto border rounded-md p-2">
+                    {allSamples.filter((x) => !excludedSamples.includes(x)).map((x) => (
+                      <label key={x} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={blankSamples.includes(x)} onChange={() => toggleBlank(x)} />{x}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">Reconhecidos pelo nome (BR, NTC, branco, H2O...); marque ou desmarque se precisar. Brancos saem dos resultados e viram checagem de contaminação.</p>
+                </div>
                 <div className="space-y-2">
                   <Label>Eficiência dos primers (%)</Label>
                   <div className="space-y-1">
@@ -357,6 +387,36 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
             </CardContent>
           </Card>
 
+          {blanks.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Controles negativos</CardTitle>
+                <CardDescription>
+                  {blanks.every((b) => b.status === 'ok')
+                    ? 'Nenhum branco amplificou: sem sinal de contaminação.'
+                    : blanks.some((b) => b.status === 'contaminated') ? 'Atenção: há branco com amplificação. Confira antes de usar os resultados desse gene.' : 'Branco com amplificação tardia: provavelmente dímero de primer.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {blanks.map((b) => (
+                    <div key={`${b.sample}|${b.gene}`} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${b.status === 'ok' ? 'border-green-200 bg-green-50 text-green-900' : b.status === 'late' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-red-200 bg-red-50 text-red-900'}`}>
+                      {b.status === 'ok' ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> : <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />}
+                      <div>
+                        <div className="font-medium">{b.sample} · {b.gene}</div>
+                        <div className="text-xs">
+                          {b.status === 'ok' && 'Controle negativo OK (sem amplificação)'}
+                          {b.status === 'late' && `Amplificou tarde (Cq ${num(b.minCq)}): provável dímero de primer. Confira a curva de melting.`}
+                          {b.status === 'contaminated' && `Possível contaminação (Cq ${num(b.minCq)})`}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 3. Resultados */}
           <Card>
             <CardHeader>
@@ -365,7 +425,7 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                   <CardTitle>3. Resultados</CardTitle>
                   <CardDescription>
                     {warningCount > 0 ? <span className="text-amber-700">{warningCount} combinação(ões) amostra × gene com alerta</span> : 'Nenhum alerta'}
-                    {' · '}Clique numa réplica para excluir ou incluir de volta.
+                    {' · '}Clique numa réplica para excluir ou incluir de volta; o ícone ao lado do nome exclui a amostra inteira.
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -382,6 +442,17 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                   {genes.map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={onlyFlags} onChange={(e) => setOnlyFlags(e.target.checked)} />Só com alerta</label>
+                {excludedSamples.length > 0 && (
+                  <div className="w-full flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="text-gray-600">Amostras excluídas:</span>
+                    {excludedSamples.map((x) => (
+                      <button key={x} type="button" onClick={() => restoreSample(x)} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs hover:bg-blue-50" title={`Restaurar ${x}`}>
+                        <span className="line-through text-gray-500">{x}</span><RotateCcw className="h-3 w-3 text-blue-700" />
+                      </button>
+                    ))}
+                    {excludedSamples.length > 1 && <button type="button" className="text-blue-700 underline text-xs" onClick={restoreAllSamples}>Restaurar todas</button>}
+                  </div>
+                )}
                 {settings.excluded.length > 0 && (
                   <button type="button" className="text-blue-700 underline" onClick={() => update({ excluded: [] })}>Incluir de volta as {settings.excluded.length} réplica(s) excluída(s)</button>
                 )}
@@ -404,7 +475,14 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                   <tbody>
                     {visible.map((r) => (
                       <tr key={`${r.sample}|${r.gene}`} className={`border-b ${r.isReference ? 'bg-gray-50' : ''}`}>
-                        <td className="p-2 font-medium">{r.sample}</td>
+                        <td className="p-2 font-medium">
+                          <div className="group flex items-center gap-1">
+                            <span>{r.sample}</span>
+                            <button type="button" onClick={() => excludeSample(r.sample)} className="opacity-30 group-hover:opacity-100 focus:opacity-100 text-gray-500 hover:text-red-600" title={`Excluir a amostra ${r.sample} de todos os genes`} aria-label={`Excluir amostra ${r.sample}`}>
+                              <UserX className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
                         <td className="p-2">{r.gene}{r.isReference && <span className="ml-1 text-xs text-gray-500">(ref.)</span>}</td>
                         <td className="p-2">
                           <div className="flex flex-wrap gap-1">
