@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, ClipboardPaste, Download, Copy, AlertTriangle, BarChart3, Settings2, FileSpreadsheet, ChevronDown, ChevronUp, UserX, RotateCcw, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, isBlankSample, mergeWithPlate, parseRunText, toLongCsv, toWideCsv, workbookToSheets } from '@/lib/qpcr';
+import { DEFAULT_SETTINGS, FLAG_LABELS, analyze, isBlankSample, mergeWithPlate, namesOrigin, parseRunText, toLongCsv, toWideCsv, workbookToSheets } from '@/lib/qpcr';
 
 const STORAGE_KEY = 'qpcrAnalysis';
 const PLATE_COLUMNS = { '96': 12, '384': 24, '48': 8 };
@@ -139,7 +139,13 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
     () => (rawText ? parseRunText(rawText, columnsOverride, PLATE_COLUMNS[plateFormat] || 12) : null),
     [rawText, columnsOverride, plateFormat]
   );
-  const wells = useMemo(() => (parsed?.rows ? mergeWithPlate(parsed.rows, plateData, targets, nameSource) : []), [parsed, plateData, targets, nameSource]);
+  // o arquivo tem colunas de amostra/gene? (se tiver, o mapa do qPlate não é usado no modo automático)
+  const fileHas = useMemo(() => ({
+    sample: Boolean(parsed?.rows && parsed.columns?.sample >= 0 && parsed.rows.some((r) => r.sample)),
+    target: Boolean(parsed?.rows && parsed.columns?.target >= 0 && parsed.rows.some((r) => r.target)),
+  }), [parsed]);
+  const wells = useMemo(() => (parsed?.rows ? mergeWithPlate(parsed.rows, plateData, targets, nameSource, fileHas) : []), [parsed, plateData, targets, nameSource, fileHas]);
+  const origin = namesOrigin(nameSource, fileHas);
   const analysis = useMemo(() => analyze(wells, settings), [wells, settings]);
   const { results, genes, samples, blanks, blankSamples, excludedSamples, allSamples } = analysis;
 
@@ -275,6 +281,15 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                 {parsed.columns.sample >= 0 && <>, Amostra = <em>{parsed.headers[parsed.columns.sample]}</em></>}
                 {parsed.columns.target >= 0 && <>, Gene = <em>{parsed.headers[parsed.columns.target]}</em></>}
               </p>
+              <p className={origin === 'file' ? 'text-gray-600' : 'text-blue-800'}>
+                {origin === 'file' && 'Nomes de amostra e gene: do arquivo (o mapa da placa não é usado).'}
+                {origin === 'plate' && (nameSource === 'plate'
+                  ? 'Nomes de amostra e gene: do mapa da placa do qPlate.'
+                  : 'O arquivo não tem nomes de amostra e gene; usando o mapa da placa do qPlate.')}
+                {origin === 'mixed' && (fileHas.sample
+                  ? 'Amostras do arquivo; genes do mapa da placa (o arquivo não tem coluna de gene).'
+                  : 'Genes do arquivo; amostras do mapa da placa (o arquivo não tem coluna de amostra).')}
+              </p>
             </div>
           )}
 
@@ -293,9 +308,9 @@ export function QpcrAnalysis({ plateData, targets, plateFormat }) {
                   <label className="text-xs space-y-1 block">
                     <span className="text-gray-600">Nomes de amostra e gene</span>
                     <select className="w-full h-9 rounded-md border px-2 text-sm bg-white" value={nameSource} onChange={(e) => setNameSource(e.target.value)}>
-                      <option value="auto">Mapa do qPlate (se vazio, o arquivo)</option>
-                      <option value="plate">Só o mapa do qPlate</option>
-                      <option value="file">Só o arquivo</option>
+                      <option value="auto">Do arquivo (mapa do qPlate só se faltar no arquivo)</option>
+                      <option value="file">Só do arquivo</option>
+                      <option value="plate">Só do mapa do qPlate</option>
                     </select>
                   </label>
                 </div>
